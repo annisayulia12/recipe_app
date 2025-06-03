@@ -75,7 +75,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-<<<<<<< HEAD
   http:
     dependency: "direct main"
     description:
@@ -92,8 +91,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
-=======
->>>>>>> 09fa3d69f261e3793c9504cb11db6a1a3483f65b
   leak_tracker:
     dependency: transitive
     description:
@@ -211,7 +208,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.4"
-<<<<<<< HEAD
   typed_data:
     dependency: transitive
     description:
@@ -220,8 +216,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
-=======
->>>>>>> 09fa3d69f261e3793c9504cb11db6a1a3483f65b
   vector_math:
     dependency: transitive
     description:
@@ -238,7 +232,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "14.3.1"
-<<<<<<< HEAD
   web:
     dependency: transitive
     description:
@@ -247,8 +240,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-=======
->>>>>>> 09fa3d69f261e3793c9504cb11db6a1a3483f65b
 sdks:
   dart: ">=3.7.0 <4.0.0"
   flutter: ">=3.18.0-18.0.pre.54"

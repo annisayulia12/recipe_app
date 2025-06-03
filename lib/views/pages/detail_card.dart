@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
+import 'package:recipein_app/views/pages/edit_recipe_page.dart';
 
 class DetailCard extends StatelessWidget {
   const DetailCard({super.key});
@@ -107,19 +108,127 @@ class DetailCard extends StatelessWidget {
                       backgroundImage: AssetImage(userAvatarUrl),
                       onBackgroundImageError: (exception, stackTrace) {
                         //print
-                        ('Error memuat gambar avatar pengguna: $exception',);
+                        ('Error memuat gambar avatar pengguna: $exception');
                       },
                     ),
                     const SizedBox(width: 12),
 
                     // Nama Pengguna
-                    Text(
-                      userName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimaryDark,
+                    Expanded(
+                      child: Text(
+                        userName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimaryDark,
+                        ),
                       ),
+                    ),
+                    PopupMenuButton<String>(
+                      icon: const Icon(
+                        Icons.more_vert,
+                        color: AppColors.greyMedium,
+                        size: 28,
+                      ),
+                      onSelected: (String result) {
+                        if (result == 'edit') {
+                          final Map<String, dynamic> currentRecipeData = {
+                            'recipeName': recipeName,
+                            'ingredients': ingredients,
+                            'steps': steps,
+                            'privacy': 'publik',
+                            'recipeImageUrl': recipeImageUrl,
+                          };
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => EditRecipePage(
+                                    recipeData: currentRecipeData,
+                                  ),
+                            ),
+                          );
+                        } else if (result == 'delete') {
+                          //print
+                          ('Hapus Postingan ditekan!');
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext dialogContext) {
+                              return AlertDialog(
+                                title: const Text('Konfirmasi Hapus'),
+                                content: const Text(
+                                  'Apakah Anda yakin ingin menghapus resep ini?',
+                                ),
+                                actions: <Widget>[
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(dialogContext).pop();
+                                    },
+                                    child: const Text('Batal'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      //print
+                                      ('Resep dihapus!');
+                                      Navigator.of(
+                                        dialogContext,
+                                      ).pop(); // Tutup dialog
+                                      Navigator.of(context).pop();
+                                    },
+                                    child: const Text(
+                                      'Hapus',
+                                      style: TextStyle(color: AppColors.error),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        }
+                      },
+                      itemBuilder:
+                          (BuildContext context) => <PopupMenuEntry<String>>[
+                            PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.edit,
+                                    color: AppColors.textPrimaryDark,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Edit Postingan',
+                                    style: TextStyle(
+                                      color: AppColors.textPrimaryDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.delete,
+                                    color: AppColors.error,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Hapus Postingan',
+                                    style: TextStyle(color: AppColors.error),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                      offset: const Offset(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 4,
                     ),
                   ],
                 ),
@@ -211,7 +320,6 @@ class DetailCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    // Ikon Share (terpisah di kanan)
                     IconButton(
                       icon: Icon(
                         Icons.share,
