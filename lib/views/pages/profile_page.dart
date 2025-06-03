@@ -1,177 +1,37 @@
+// lib/views/pages/profile_page.dart
 import 'package:flutter/material.dart';
-import 'package:recipein_app/constants/app_colors.dart'; // Impor file warna Anda
+import 'package:recipein_app/constants/app_colors.dart';
+import 'package:recipein_app/services/auth_service.dart';
+import 'package:recipein_app/services/firestore_service.dart';
 
-class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
-
-  @override
-  State<ProfilePage> createState() => _ProfilePageState();
-}
-
-class _ProfilePageState extends State<ProfilePage> {
-  String userName = "Vanyara";
-  final TextEditingController _nameController = TextEditingController();
-
-  void _editUserName() {
-    _nameController.text = userName;
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("Edit Nama"),
-            content: TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(hintText: "Masukkan nama baru"),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Batal"),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    userName = _nameController.text;
-                  });
-                  Navigator.pop(context);
-                },
-                child: const Text("Simpan"),
-              ),
-            ],
-          ),
-    );
-  }
+class ProfilePage extends StatelessWidget {
+  final AuthService authService;
+  final FirestoreService firestoreService;
+  const ProfilePage({super.key, required this.authService, required this.firestoreService});
 
   @override
   Widget build(BuildContext context) {
+    // Ganti dengan implementasi UI Anda yang sudah ada
+    // Untuk sekarang, hanya placeholder
     return Scaffold(
-      backgroundColor: AppColors.offWhite,
-      body: Column(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFE0F2F1), AppColors.primaryGreen],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
-            child: Column(
-              children: [
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    const CircleAvatar(
-                      radius: 50,
-                      backgroundImage: AssetImage('assets/images/profile5.png'),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(51),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.camera_alt, size: 20),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Nama pengguna + edit
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      userName,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    GestureDetector(
-                      onTap: _editUserName,
-                      child: const Icon(
-                        Icons.edit,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
-                const Text(
-                  'vanyara@gmail.com',
-                  style: TextStyle(color: AppColors.textPrimaryLight),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Menu
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _buildListTile(
-                  icon: Icons.lock,
-                  title: 'Ganti Kata Sandi',
-                  onTap: () {},
-                ),
-                _buildListTile(
-                  icon: Icons.logout,
-                  title: 'Keluar',
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
+      appBar: AppBar(
+        title: const Text('Profil Pengguna', style: TextStyle(color: AppColors.textPrimaryDark)),
+        backgroundColor: AppColors.white,
+        elevation: 1,
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: AppColors.primaryOrange),
+            onPressed: () async {
+              await authService.signOut();
+              // AuthGate akan menangani navigasi ke halaman login
+            },
+          )
         ],
       ),
-
-      // Bottom Navigation
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 2,
-        selectedItemColor: AppColors.primaryOrange,
-        unselectedItemColor: AppColors.greyMedium,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Beranda'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Notifikasi',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-        ],
+      body: Center(
+        child: Text('Halaman Profil Akan Datang. Pengguna: ${authService.getCurrentUser()?.email ?? "Tidak ada"}'),
       ),
-    );
-  }
-
-  Widget _buildListTile({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.primaryGreen),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimaryDark,
-        ),
-      ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: onTap,
     );
   }
 }

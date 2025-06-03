@@ -1,73 +1,128 @@
 import 'package:flutter/material.dart';
-import 'package:recipein_app/views/pages/input_page.dart';
+import 'package:recipein_app/constants/app_colors.dart';
+import 'package:recipein_app/models/models.dart';
+import 'package:recipein_app/services/auth_service.dart';
+import 'package:recipein_app/services/firestore_service.dart';
 import 'package:recipein_app/views/widget/recipe_card.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final FirestoreService firestoreService;
+  final AuthService authService;
+
+  const HomePage({
+    super.key,
+    required this.firestoreService,
+    required this.authService,
+  });
 
   @override
-  // ignore: library_private_types_in_public_api
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
+    print("HomePage: build() called");
     return Scaffold(
       appBar: AppBar(
         title: Image.asset('assets/images/logo.png', height: 30),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: AppColors.white,
+        elevation: 1,
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.offWhite,
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Jelajahi resep Anda',
+            const Text(
+              'Jelajahi Resep Terbaru',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.black,
+                color: AppColors.textPrimaryDark,
               ),
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search',
-                prefixIcon: Icon(Icons.search_sharp),
+                hintText: 'Cari resep masakan...',
+                prefixIcon: const Icon(Icons.search_sharp, color: AppColors.greyMedium),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: AppColors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
+                  borderSide: const BorderSide(color: AppColors.greyLight, width: 1.5),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
                 ),
               ),
+              onChanged: (value) {
+                // TODO: Implementasi logika search
+              },
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView.builder(
-                itemCount: 3,
-                itemBuilder: (context, index) => RecipeCard(),
+              child: StreamBuilder<List<RecipeModel>>(
+                stream: widget.firestoreService.getPublicRecipes(limit: 20),
+                builder: (context, snapshot) {
+                  print("HomePage StreamBuilder: ConnectionState: ${snapshot.connectionState}");
+                  if (snapshot.hasError) {
+                    print("HomePage StreamBuilder: Error: ${snapshot.error}");
+                    print("HomePage StreamBuilder: StackTrace: ${snapshot.stackTrace}");
+                  }
+                  if (snapshot.hasData) {
+                    print("HomePage StreamBuilder: HasData, count: ${snapshot.data!.length}");
+                  } else {
+                    print("HomePage StreamBuilder: NoData");
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange));
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Oops! Terjadi kesalahan: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'Belum ada resep publik yang tersedia.\nJadilah yang pertama membagikan resepmu!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16, color: AppColors.greyMedium),
+                      ),
+                    );
+                  }
+                  final recipes = snapshot.data!;
+                  return ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 80),
+                    itemCount: recipes.length,
+                    itemBuilder: (context, index) {
+                      final recipe = recipes[index];
+                      return RecipeCard(
+                        recipe: recipe,
+                        firestoreService: widget.firestoreService,
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const InputPage()),
-          );
-        },
-        backgroundColor: Colors.deepOrange,
-        child: Icon(Icons.add, color: Colors.white, size: 30),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }

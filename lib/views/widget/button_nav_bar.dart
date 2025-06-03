@@ -1,25 +1,54 @@
+// lib/views/widget/button_nav_bar.dart
 import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
+import 'package:recipein_app/services/auth_service.dart';
+import 'package:recipein_app/services/firestore_service.dart';
 import 'package:recipein_app/views/pages/home.dart';
+import 'package:recipein_app/views/pages/user_recipes_page.dart'; // Halaman baru
 import 'package:recipein_app/views/pages/notification_page.dart';
 import 'package:recipein_app/views/pages/profile_page.dart';
 import 'package:recipein_app/views/pages/input_page.dart';
 
 class ButtonNavBar extends StatefulWidget {
-  const ButtonNavBar({super.key});
+  final AuthService authService;
+  final FirestoreService firestoreService;
+
+  const ButtonNavBar({
+    super.key,
+    required this.authService,
+    required this.firestoreService,
+  });
 
   @override
   State<ButtonNavBar> createState() => _ButtonNavBarState();
 }
 
 class _ButtonNavBarState extends State<ButtonNavBar> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 0; // Default ke Beranda
+  late final List<Widget> _pages;
 
-  final List<Widget> _pages = const [
-    HomePage(),
-    NotificationPage(),
-    ProfilePage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      HomePage(
+        firestoreService: widget.firestoreService,
+        authService: widget.authService,
+      ),
+      UserRecipesPage( // Halaman baru untuk resep pengguna
+        firestoreService: widget.firestoreService,
+        authService: widget.authService,
+      ),
+      NotificationPage(
+        firestoreService: widget.firestoreService,
+        authService: widget.authService,
+      ),
+      ProfilePage(
+        authService: widget.authService,
+        firestoreService: widget.firestoreService,
+      ),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -30,81 +59,91 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex],
-
-      floatingActionButton:
-          _selectedIndex == 0
-              ? FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const InputPage()),
-                  );
-                },
-                backgroundColor: AppColors.primaryGreen,
-                shape: const CircleBorder(),
-                elevation: 6,
-                child: const Icon(Icons.add, color: AppColors.white),
-              )
-              : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20.0),
-            topRight: Radius.circular(20.0),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+      floatingActionButton: FloatingActionButton( // FAB selalu ada, tapi fungsinya bisa beda
+              onPressed: () {
+                // Navigasi ke InputPage untuk menambah resep baru
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InputPage(
+                      firestoreService: widget.firestoreService,
+                      authService: widget.authService,
+                    ),
+                  ),
+                );
+              },
+              backgroundColor: AppColors.primaryGreen,
+              shape: const CircleBorder(),
+              elevation: 6,
+              child: const Icon(Icons.add, color: AppColors.white, size: 28),
+            ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // Posisi di tengah
+      bottomNavigationBar: BottomAppBar( // Gunakan BottomAppBar untuk docking FAB
+        shape: const CircularNotchedRectangle(), // Bentuk notch untuk FAB
+        notchMargin: 6.0, // Jarak antara FAB dan BottomAppBar
+        color: AppColors.white,
+        elevation: 8.0, // Beri shadow
+        child: Container(
+          height: 60.0, // Tinggi BottomAppBar
+          decoration: const BoxDecoration(
+             borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20.0),
+                topRight: Radius.circular(20.0),
+             ),
+             // Tidak perlu boxShadow di sini jika sudah di BottomAppBar elevation
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.greyMedium.withAlpha((255 * 0.2).round()),
-              spreadRadius: 2,
-              blurRadius: 5,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10.0),
-          child: BottomNavigationBar(
-            items: <BottomNavigationBarItem>[
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined),
-                activeIcon: Icon(Icons.home, color: AppColors.primaryOrange),
-                label: 'Beranda',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.notifications_outlined),
-                activeIcon: Icon(
-                  Icons.notifications,
-                  color: AppColors.primaryOrange,
-                ),
-                label: 'Notifikasi',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                activeIcon: Icon(Icons.person, color: AppColors.primaryOrange),
-                label: 'Profil',
-              ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              _buildNavItem(Icons.home_outlined, Icons.home, 'Beranda', 0),
+              _buildNavItem(Icons.menu_book_outlined, Icons.menu_book, 'Resep Saya', 1), // Item baru
+              const SizedBox(width: 40), // Spacer untuk FAB
+              _buildNavItem(Icons.notifications_outlined, Icons.notifications, 'Notifikasi', 2),
+              _buildNavItem(Icons.person_outline, Icons.person, 'Profil', 3),
             ],
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            iconSize: 28.0,
-            selectedItemColor: AppColors.primaryOrange,
-            unselectedItemColor: AppColors.greyMedium,
-            selectedLabelStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-            unselectedLabelStyle: const TextStyle(fontSize: 12),
-            showUnselectedLabels: true,
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
           ),
         ),
       ),
-      extendBody: true,
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, IconData activeIcon, String label, int index) {
+    bool isSelected = _selectedIndex == index;
+    return Expanded( // Agar setiap item memiliki lebar yang sama
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _onItemTapped(index),
+          customBorder: const CircleBorder(), // Efek ripple bulat
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(
+                  isSelected ? activeIcon : icon,
+                  color: isSelected ? AppColors.primaryOrange : AppColors.greyDark,
+                  size: 24, // Ukuran ikon
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: isSelected ? AppColors.primaryOrange : AppColors.greyDark,
+                    fontSize: 10, // Ukuran font label
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
