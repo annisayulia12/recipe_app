@@ -293,6 +293,8 @@ class FirestoreService {
         'recipeTitle': recipeTitle,
         'recipeImageUrl': recipeImageUrl,
       });
+      // *** TAMBAHKAN LOGIKA UPDATE COUNT ***
+      await _recipesRef().doc(recipeId).update({'bookmarksCount': FieldValue.increment(1)});
     } catch (e) {
       print('Error bookmark resep: $e');
       throw Exception('Gagal bookmark resep.');
@@ -302,6 +304,8 @@ class FirestoreService {
   Future<void> unbookmarkRecipe(String userId, String recipeId) async {
     try {
       await _userBookmarkRef(userId, recipeId).delete();
+      // *** TAMBAHKAN LOGIKA UPDATE COUNT ***
+      await _recipesRef().doc(recipeId).update({'bookmarksCount': FieldValue.increment(-1)});
     } catch (e) {
       print('Error unbookmark resep: $e');
       throw Exception('Gagal unbookmark resep.');

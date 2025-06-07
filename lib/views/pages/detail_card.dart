@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_dynamic_links/firebase_dynamic_links.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/services/auth_service.dart';
@@ -39,7 +40,7 @@ class DetailCard extends StatefulWidget {
 }
 
 class _DetailCardState extends State<DetailCard> {
-  late final Future<RecipeDetailBundle?> _detailsFuture;
+  late Future<RecipeDetailBundle?> _detailsFuture;
   
   // State lokal untuk interaksi UI setelah data awal dimuat
   RecipeModel? _recipe;
@@ -48,11 +49,12 @@ class _DetailCardState extends State<DetailCard> {
   bool _isBookmarked = false;
   bool _isInteractionLoading = false;
 
+  final String _dynamicLinkDomain = "recipeinapp.page.link";
+
   @override
   void initState() {
     super.initState();
     _currentUser = widget.authService.getCurrentUser();
-    // Inisialisasi Future HANYA SEKALI di initState untuk mencegah panggilan berulang
     _detailsFuture = _loadRecipeDetails();
   }
 
@@ -61,15 +63,11 @@ class _DetailCardState extends State<DetailCard> {
   Future<RecipeDetailBundle?> _loadRecipeDetails() async {
     try {
       final recipeData = await widget.firestoreService.getRecipe(widget.recipeId);
-      if (recipeData == null) {
-        // Jika resep tidak ada, kembalikan null untuk ditangani FutureBuilder
-        return null;
-      }
+      if (recipeData == null) return null;
 
       bool liked = false;
       bool bookmarked = false;
       if (_currentUser != null) {
-        // Ambil status like dan bookmark secara bersamaan
         final results = await Future.wait([
           widget.firestoreService.isRecipeLikedByUser(recipeData.id, _currentUser!.uid),
           widget.firestoreService.isRecipeBookmarkedByUser(_currentUser!.uid, recipeData.id),
@@ -78,7 +76,6 @@ class _DetailCardState extends State<DetailCard> {
         bookmarked = results[1];
       }
       
-      // Update state lokal setelah data diambil, ini penting untuk pembaruan UI instan
       if (mounted) {
         setState(() {
           _recipe = recipeData;
@@ -89,7 +86,6 @@ class _DetailCardState extends State<DetailCard> {
       return RecipeDetailBundle(recipe: recipeData, isLiked: liked, isBookmarked: bookmarked);
     } catch (e) {
       print("Error loading recipe details: $e");
-      // Lemparkan error agar FutureBuilder bisa menampilkannya
       rethrow;
     }
   }
@@ -99,10 +95,11 @@ class _DetailCardState extends State<DetailCard> {
     setState(() => _isInteractionLoading = true);
     final currentlyLiked = _isLiked;
     
-    // Update UI secara optimis
+    // Optimistic UI update dengan pengecekan
     setState(() {
       _isLiked = !currentlyLiked;
-      _recipe = _recipe!.copyWith(likesCount: _isLiked ? _recipe!.likesCount + 1 : _recipe!.likesCount - 1);
+      int newLikesCount = _isLiked ? _recipe!.likesCount + 1 : (_recipe!.likesCount > 0 ? _recipe!.likesCount - 1 : 0);
+      _recipe = _recipe!.copyWith(likesCount: newLikesCount);
     });
     try {
       if (currentlyLiked) {
@@ -114,7 +111,8 @@ class _DetailCardState extends State<DetailCard> {
       // Rollback jika gagal
       setState(() {
         _isLiked = currentlyLiked;
-        _recipe = _recipe!.copyWith(likesCount: currentlyLiked ? _recipe!.likesCount + 1 : _recipe!.likesCount - 1);
+        int newLikesCount = currentlyLiked ? _recipe!.likesCount - 1 : _recipe!.likesCount + 1;
+        _recipe = _recipe!.copyWith(likesCount: newLikesCount);
       });
       if(mounted) CustomOverlayNotification.show(context, 'Gagal memproses suka', isSuccess: false);
     } finally {
@@ -126,7 +124,14 @@ class _DetailCardState extends State<DetailCard> {
     if (_isInteractionLoading || _currentUser == null || _recipe == null) return;
     setState(() => _isInteractionLoading = true);
     final currentlyBookmarked = _isBookmarked;
-    setState(() => _isBookmarked = !currentlyBookmarked);
+
+    // Optimistic UI update dengan pengecekan
+    setState(() {
+      _isBookmarked = !currentlyBookmarked;
+      int newBookmarksCount = _isBookmarked ? _recipe!.bookmarksCount + 1 : (_recipe!.bookmarksCount > 0 ? _recipe!.bookmarksCount - 1 : 0);
+      _recipe = _recipe!.copyWith(bookmarksCount: newBookmarksCount);
+    });
+
     try {
       if (currentlyBookmarked) {
         await widget.firestoreService.unbookmarkRecipe(_currentUser!.uid, _recipe!.id);
@@ -135,23 +140,39 @@ class _DetailCardState extends State<DetailCard> {
       }
       if (mounted) CustomOverlayNotification.show(context, _isBookmarked ? 'Postingan berhasil disimpan' : 'Simpanan resep dihapus');
     } catch (e) {
-      setState(() => _isBookmarked = currentlyBookmarked);
+      // Rollback jika gagal
+      setState(() {
+        _isBookmarked = currentlyBookmarked;
+        int newBookmarksCount = currentlyBookmarked ? _recipe!.bookmarksCount - 1 : _recipe!.bookmarksCount + 1;
+        _recipe = _recipe!.copyWith(bookmarksCount: newBookmarksCount);
+      });
       if(mounted) CustomOverlayNotification.show(context, 'Gagal memproses simpanan', isSuccess: false);
     } finally {
       if (mounted) setState(() => _isInteractionLoading = false);
     }
   }
 
-  void _shareRecipe() {
+  Future<String> _generateDeepLink() async {
+    final dynamicLinkParams = DynamicLinkParameters(
+      link: Uri.parse("https://recipein-app.com/resep?id=${_recipe!.id}"),
+      uriPrefix: "https://$_dynamicLinkDomain",
+      androidParameters: const AndroidParameters(packageName: "com.example.recipein_app", minimumVersion: 0),
+      iosParameters: const IOSParameters(bundleId: "com.example.recipeinApp", minimumVersion: "0"),
+    );
+    final shortLink = await FirebaseDynamicLinks.instance.buildShortLink(dynamicLinkParams);
+    return shortLink.shortUrl.toString();
+  }
+
+  void _shareRecipe() async {
     if (_recipe == null) return;
-    final String recipeUrl = "https://recipeinapp.page.link/resep?id=${_recipe!.id}";
+    final String recipeUrl = await _generateDeepLink();
     final String shareText = "Lihat resep lezat '${_recipe!.title}' yang saya temukan di aplikasi RecipeIn! \n\n$recipeUrl";
     Share.share(shareText, subject: "Resep Lezat: ${_recipe!.title}");
   }
 
   void _copyLink() async {
     if (_recipe == null) return;
-    final String recipeUrl = "https://recipeinapp.page.link/resep?id=${_recipe!.id}";
+    final String recipeUrl = await _generateDeepLink();
     await Clipboard.setData(ClipboardData(text: recipeUrl));
     if (mounted) CustomOverlayNotification.show(context, 'Tautan berhasil disalin');
   }
@@ -306,9 +327,6 @@ class _DetailCardState extends State<DetailCard> {
     );
   }
 
-  // --- UI HELPER WIDGETS ---
-  // Ditambahkan kembali di sini
-
   Widget _buildInteractionBottomBar(RecipeModel recipe) {
     return BottomAppBar(
       color: AppColors.white,
@@ -322,8 +340,7 @@ class _DetailCardState extends State<DetailCard> {
               onPressed: _toggleBookmark,
               icon: Icon(_isBookmarked ? Icons.bookmark : Icons.bookmark_border, color: _isBookmarked ? AppColors.primaryOrange : AppColors.textPrimaryDark, size: 22),
               label: Text(
-                // TODO: Ganti dengan recipe.bookmarksCount jika sudah ada fieldnya
-                "${recipe.likesCount} disimpan",
+                "${recipe.bookmarksCount} disimpan",
                 style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimaryDark),
               ),
               style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),

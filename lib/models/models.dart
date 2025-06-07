@@ -81,6 +81,7 @@ class RecipeModel {
   final bool isPublic;
   final int likesCount;
   final int commentsCount;
+  final int bookmarksCount;
 
   RecipeModel({
     required this.id,
@@ -97,6 +98,7 @@ class RecipeModel {
     required this.isPublic,
     this.likesCount = 0,
     this.commentsCount = 0,
+    this.bookmarksCount = 0,
   });
 
   Map<String, dynamic> toJson() {
@@ -114,6 +116,7 @@ class RecipeModel {
       'isPublic': isPublic,
       'likesCount': likesCount,
       'commentsCount': commentsCount,
+      'bookmarksCount': bookmarksCount,
     };
   }
 
@@ -138,6 +141,7 @@ class RecipeModel {
       isPublic: data['isPublic'] ?? true, // Default ke publik jika tidak ada
       likesCount: data['likesCount'] ?? 0,
       commentsCount: data['commentsCount'] ?? 0,
+      bookmarksCount: data['bookmarksCount'] ?? 0,
     );
   }
 
@@ -156,6 +160,7 @@ class RecipeModel {
     bool? isPublic,
     int? likesCount,
     int? commentsCount,
+    int? bookmarksCount,
   }) {
     return RecipeModel(
       id: id ?? this.id,
@@ -172,6 +177,7 @@ class RecipeModel {
       isPublic: isPublic ?? this.isPublic,
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,
+      bookmarksCount: bookmarksCount ?? this.bookmarksCount, 
     );
   }
 }
