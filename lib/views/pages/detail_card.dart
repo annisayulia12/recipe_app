@@ -7,6 +7,7 @@ import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/services/auth_service.dart';
 import 'package:recipein_app/services/firestore_service.dart';
 import 'package:recipein_app/views/pages/edit_recipe_page.dart';
+import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -179,38 +180,44 @@ class _DetailCardState extends State<DetailCard> {
 
   Future<void> _showDeleteConfirmationDialog() async {
     if (_recipe == null) return;
-    showDialog<void>(
+
+    final bool? confirm = await showCustomConfirmationDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Konfirmasi Hapus'),
-          content: SingleChildScrollView(child: ListBody(children: <Widget>[Text('Apakah Anda yakin ingin menghapus resep "${_recipe!.title}"?'), const Text('Tindakan ini tidak dapat dibatalkan.', style: TextStyle(fontWeight: FontWeight.bold))])),
-          actions: <Widget>[
-            TextButton(child: const Text('Batal'), onPressed: () => Navigator.of(context).pop()),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: AppColors.error),
-              child: const Text('Hapus'),
-              onPressed: () { Navigator.of(context).pop(); _deleteRecipe(); },
-            ),
+      title: 'Hapus Resep?',
+      content: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          children: <TextSpan>[
+            const TextSpan(text: 'Apakah anda yakin ingin menghapus resep '),
+            TextSpan(text: '"${_recipe!.title}"?\n\n', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const TextSpan(text: 'Tindakan ini tidak dapat dibatalkan.'),
           ],
-        );
-      },
+        ),
+      ),
+      confirmText: 'Hapus',
+      confirmButtonColor: AppColors.error,
     );
+    
+    if (confirm == true) {
+      _deleteRecipe();
+    }
   }
 
   Future<void> _deleteRecipe() async {
     if (_recipe == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('Menghapus resep...')));
+    
     try {
       await widget.firestoreService.deleteRecipe(_recipe!.id);
-      messenger.removeCurrentSnackBar();
-      messenger.showSnackBar(const SnackBar(content: Text('Resep berhasil dihapus.'), backgroundColor: AppColors.success));
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
+        // Beri jeda agar notifikasi muncul di halaman sebelumnya
+        Future.delayed(const Duration(milliseconds: 200), () {
+          CustomOverlayNotification.show(context, 'Resep berhasil dihapus');
+        });
+      }
     } catch (e) {
-      messenger.removeCurrentSnackBar();
-      messenger.showSnackBar(SnackBar(content: Text('Gagal menghapus resep: ${e.toString()}'), backgroundColor: AppColors.error));
+      if (mounted) CustomOverlayNotification.show(context, 'Gagal menghapus resep: ${e.toString()}', isSuccess: false);
     }
   }
 

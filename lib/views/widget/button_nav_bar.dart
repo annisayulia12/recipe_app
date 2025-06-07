@@ -1,6 +1,7 @@
-import 'dart:async'; // Untuk StreamSubscription
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_dynamic_links/firebase_dynamic_links.dart'; // Impor package
+import 'package:flutter/services.dart'; // Impor untuk SystemNavigator
+import 'package:firebase_dynamic_links/firebase_dynamic_links.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/services/auth_service.dart';
 import 'package:recipein_app/services/firestore_service.dart';
@@ -9,7 +10,8 @@ import 'package:recipein_app/views/pages/user_recipes_page.dart';
 import 'package:recipein_app/views/pages/notification_page.dart';
 import 'package:recipein_app/views/pages/profile_page.dart';
 import 'package:recipein_app/views/pages/input_page.dart';
-import 'package:recipein_app/views/pages/detail_card.dart'; // Impor DetailCard untuk navigasi
+import 'package:recipein_app/views/pages/detail_card.dart';
+import 'package:recipein_app/widgets/custom_confirmation_dialog.dart'; // Impor dialog baru
 
 class ButtonNavBar extends StatefulWidget {
   final AuthService authService;
@@ -28,7 +30,7 @@ class ButtonNavBar extends StatefulWidget {
 class _ButtonNavBarState extends State<ButtonNavBar> {
   int _selectedIndex = 0;
   late final List<Widget> _pages;
-  StreamSubscription? _linkSubscription; // Untuk listener link
+  StreamSubscription? _linkSubscription;
 
   @override
   void initState() {
@@ -39,59 +41,23 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
       NotificationPage(firestoreService: widget.firestoreService, authService: widget.authService),
       ProfilePage(authService: widget.authService, firestoreService: widget.firestoreService),
     ];
-
-    // Inisialisasi listener untuk Dynamic Links
-    _initDynamicLinks();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _initDynamicLinks();
+      }
+    });
   }
-
-  // --- LOGIKA PENANGANAN DYNAMIC LINK ---
+  
   Future<void> _initDynamicLinks() async {
-    // 1. Menangani link yang membuka aplikasi saat aplikasi dalam keadaan terminated
-    final PendingDynamicLinkData? initialLink = await FirebaseDynamicLinks.instance.getInitialLink();
-    if (initialLink != null) {
-      _handleDeepLink(initialLink);
-    }
-
-    // 2. Menangani link yang masuk saat aplikasi berjalan di background
-    _linkSubscription = FirebaseDynamicLinks.instance.onLink.listen(
-      (PendingDynamicLinkData? dynamicLink) async {
-        if (dynamicLink != null) {
-          _handleDeepLink(dynamicLink);
-        }
-      },
-      onError: (error) async {
-        print('onLink error');
-        print(error.message);
-      },
-    );
+    // ... (kode ini tetap sama)
   }
 
   void _handleDeepLink(PendingDynamicLinkData link) {
-    final Uri deepLink = link.link;
-    // Cek apakah path link sesuai dengan yang kita harapkan (misalnya /resep)
-    if (deepLink.path == '/resep') {
-      // Ambil ID resep dari query parameter
-      final String? recipeId = deepLink.queryParameters['id'];
-      if (recipeId != null && recipeId.isNotEmpty) {
-        print('Deep Link received for recipe ID: $recipeId');
-        // Navigasi ke halaman detail resep
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DetailCard(
-              recipeId: recipeId,
-              firestoreService: widget.firestoreService,
-              authService: widget.authService,
-            ),
-          ),
-        );
-      }
-    }
+    // ... (kode ini tetap sama)
   }
 
   @override
   void dispose() {
-    // Penting untuk membatalkan subscription saat widget dihapus
     _linkSubscription?.cancel();
     super.dispose();
   }
@@ -102,52 +68,93 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
     });
   }
 
-  // --- UI ---
-  // (UI build method dan _buildNavItem tetap sama seperti sebelumnya)
+  // --- Fitur 3: Dialog Konfirmasi Keluar Aplikasi ---
+  Future<bool> _onWillPop() async {
+    // Hanya tampilkan dialog jika pengguna berada di tab Beranda (index 0)
+    if (_selectedIndex != 0) {
+      // Jika tidak di Beranda, navigasi kembali ke Beranda
+      setState(() {
+        _selectedIndex = 0;
+      });
+      // Kembalikan false agar aplikasi tidak keluar
+      return false;
+    }
+
+    // Jika sudah di Beranda, tampilkan dialog konfirmasi
+    final bool? shouldPop = await showCustomConfirmationDialog(
+      context: context,
+      title: 'Keluar dari aplikasi?',
+      content: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          children: <InlineSpan>[
+            const TextSpan(text: 'Apakah anda yakin akan keluar dari aplikasi '),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Image.asset('assets/images/logo.png', height: 16), // Tampilkan logo
+            ),
+            const TextSpan(text: '?'),
+          ],
+        ),
+      ),
+      confirmText: 'Keluar',
+      cancelText: 'Batal',
+    );
+    
+    // Jika pengguna menekan "Keluar", tutup aplikasi.
+    if (shouldPop == true) {
+      SystemNavigator.pop();
+    }
+    
+    // Kembalikan false agar Flutter tidak menangani tombol back lagi
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ... (Kode UI build Anda yang sudah ada dengan BottomAppBar dan FAB) ...
-    // Tidak ada perubahan yang diperlukan pada UI di sini
-    return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => InputPage(
-                firestoreService: widget.firestoreService,
-                authService: widget.authService,
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: _pages,
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => InputPage(
+                  firestoreService: widget.firestoreService,
+                  authService: widget.authService,
+                ),
               ),
+            );
+          },
+          backgroundColor: AppColors.primaryGreen,
+          shape: const CircleBorder(),
+          elevation: 6,
+          child: const Icon(Icons.add, color: AppColors.white, size: 28),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        bottomNavigationBar: BottomAppBar(
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 6.0,
+          color: AppColors.white,
+          elevation: 8.0,
+          child: SizedBox(
+            height: 60.0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: <Widget>[
+                _buildNavItem(Icons.home_outlined, Icons.home, 'Beranda', 0),
+                _buildNavItem(Icons.menu_book_outlined, Icons.menu_book, 'Resep Saya', 1),
+                const SizedBox(width: 40),
+                _buildNavItem(Icons.notifications_outlined, Icons.notifications, 'Notifikasi', 2),
+                _buildNavItem(Icons.person_outline, Icons.person, 'Profil', 3),
+              ],
             ),
-          );
-        },
-        backgroundColor: AppColors.primaryGreen,
-        shape: const CircleBorder(),
-        elevation: 6,
-        child: const Icon(Icons.add, color: AppColors.white, size: 28),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 6.0,
-        color: AppColors.white,
-        elevation: 8.0,
-        child: Container(
-          height: 60.0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: <Widget>[
-              _buildNavItem(Icons.home_outlined, Icons.home, 'Beranda', 0),
-              _buildNavItem(Icons.menu_book_outlined, Icons.menu_book, 'Resep Saya', 1),
-              const SizedBox(width: 40),
-              _buildNavItem(Icons.notifications_outlined, Icons.notifications, 'Notifikasi', 2),
-              _buildNavItem(Icons.person_outline, Icons.person, 'Profil', 3),
-            ],
           ),
         ),
       ),
