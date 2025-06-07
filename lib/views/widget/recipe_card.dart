@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/views/pages/detail_card.dart';
 import 'package:recipein_app/constants/app_colors.dart';
-import 'package:recipein_app/services/firestore_service.dart'; // Impor FirestoreService
+import 'package:recipein_app/services/firestore_service.dart';
+import 'package:recipein_app/services/auth_service.dart'; // Impor AuthService
 
 class RecipeCard extends StatelessWidget {
   final RecipeModel recipe;
-  final FirestoreService firestoreService; // Tambahkan parameter ini
+  final FirestoreService firestoreService;
+  final AuthService authService; // Tambahkan parameter ini
 
   const RecipeCard({
     super.key,
     required this.recipe,
-    required this.firestoreService, // Jadikan parameter wajib
+    required this.firestoreService,
+    required this.authService, // Jadikan parameter wajib
   });
 
   @override
@@ -27,7 +30,8 @@ class RecipeCard extends StatelessWidget {
             MaterialPageRoute(
               builder: (context) => DetailCard(
                 recipeId: recipe.id,
-                firestoreService: firestoreService, // Teruskan firestoreService
+                firestoreService: firestoreService,
+                authService: authService, // Teruskan authService ke DetailCard
               ),
             ),
           );
@@ -76,6 +80,7 @@ class RecipeCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CircleAvatar(
                     backgroundImage: recipe.ownerPhotoUrl != null && recipe.ownerPhotoUrl!.isNotEmpty
@@ -108,6 +113,7 @@ class RecipeCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8), // Beri jarak antara nama dan ikon
                   Row(
                     children: [
                       const Icon(Icons.favorite_border, size: 20, color: AppColors.greyMedium),
@@ -137,3 +143,4 @@ class RecipeCard extends StatelessWidget {
     );
   }
 }
+

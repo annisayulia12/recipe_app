@@ -21,10 +21,24 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController _searchController = TextEditingController();
+  // State variable untuk menyimpan stream agar tidak dibuat ulang
+  late final Stream<List<RecipeModel>> _publicRecipesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // Inisialisasi stream HANYA SEKALI di sini
+    _publicRecipesStream = widget.firestoreService.getPublicRecipes(limit: 20);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    print("HomePage: build() called");
     return Scaffold(
       appBar: AppBar(
         title: Image.asset('assets/images/logo.png', height: 30),
@@ -71,19 +85,9 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 20),
             Expanded(
               child: StreamBuilder<List<RecipeModel>>(
-                stream: widget.firestoreService.getPublicRecipes(limit: 20),
+                // Gunakan stream yang sudah disimpan di state
+                stream: _publicRecipesStream,
                 builder: (context, snapshot) {
-                  print("HomePage StreamBuilder: ConnectionState: ${snapshot.connectionState}");
-                  if (snapshot.hasError) {
-                    print("HomePage StreamBuilder: Error: ${snapshot.error}");
-                    print("HomePage StreamBuilder: StackTrace: ${snapshot.stackTrace}");
-                  }
-                  if (snapshot.hasData) {
-                    print("HomePage StreamBuilder: HasData, count: ${snapshot.data!.length}");
-                  } else {
-                    print("HomePage StreamBuilder: NoData");
-                  }
-
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange));
                   }
@@ -108,6 +112,7 @@ class _HomePageState extends State<HomePage> {
                       return RecipeCard(
                         recipe: recipe,
                         firestoreService: widget.firestoreService,
+                        authService: widget.authService,
                       );
                     },
                   );
@@ -118,11 +123,5 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 }
