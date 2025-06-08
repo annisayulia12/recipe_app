@@ -5,8 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/interaction_service.dart';
 import 'package:recipein_app/services/recipe_service.dart';
+import 'package:recipein_app/services/interaction_service.dart';
 import 'package:recipein_app/views/pages/edit_recipe_page.dart';
 import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart';
@@ -19,12 +19,7 @@ class RecipeDetailBundle {
   final RecipeModel recipe;
   final bool isLiked;
   final bool isBookmarked;
-
-  RecipeDetailBundle({
-    required this.recipe,
-    required this.isLiked,
-    required this.isBookmarked,
-  });
+  RecipeDetailBundle({ required this.recipe, required this.isLiked, required this.isBookmarked });
 }
 
 class DetailCard extends StatefulWidget {
@@ -34,11 +29,11 @@ class DetailCard extends StatefulWidget {
   final AuthService authService;
 
   const DetailCard({
-    super.key, 
-    required this.recipeId, 
-    required this.recipeService, 
-    required this.interactionService, 
-    required this.authService
+    super.key,
+    required this.recipeId,
+    required this.recipeService,
+    required this.interactionService,
+    required this.authService,
   });
 
   @override
@@ -48,16 +43,16 @@ class DetailCard extends StatefulWidget {
 class _DetailCardState extends State<DetailCard> {
   late Future<RecipeDetailBundle?> _detailsFuture;
   
-  // State lokal untuk interaksi UI setelah data awal dimuat
+  // Semua state dan controller sekarang didefinisikan di sini
   RecipeModel? _recipe;
   User? _currentUser;
   bool _isLiked = false;
   bool _isBookmarked = false;
   bool _isInteractionLoading = false;
-
   final TextEditingController _commentController = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
   final String _dynamicLinkDomain = "recipeinapp.page.link";
+  CommentModel? _replyingToComment;
 
   @override
   void initState() {
@@ -65,15 +60,15 @@ class _DetailCardState extends State<DetailCard> {
     _currentUser = widget.authService.getCurrentUser();
     _detailsFuture = _loadRecipeDetails();
   }
-  
+
   @override
   void dispose() {
     _commentController.dispose();
     _commentFocusNode.dispose();
     super.dispose();
   }
-
-  // --- SEMUA METODE HELPER YANG DIPERLUKAN ---
+  
+  // --- SEMUA METODE LOGIKA DI DALAM _DetailCardState ---
 
   Future<RecipeDetailBundle?> _loadRecipeDetails() async {
     try {
@@ -91,7 +86,6 @@ class _DetailCardState extends State<DetailCard> {
         bookmarked = results[1];
       }
       
-      // Update state lokal setelah data diambil, ini penting untuk pembaruan UI instan
       if (mounted) {
         setState(() {
           _recipe = recipeData;
@@ -111,7 +105,6 @@ class _DetailCardState extends State<DetailCard> {
     setState(() => _isInteractionLoading = true);
     final currentlyLiked = _isLiked;
     
-    // Optimistic UI update dengan pengecekan
     setState(() {
       _isLiked = !currentlyLiked;
       int newLikesCount = _isLiked ? _recipe!.likesCount + 1 : (_recipe!.likesCount > 0 ? _recipe!.likesCount - 1 : 0);
@@ -124,10 +117,9 @@ class _DetailCardState extends State<DetailCard> {
         await widget.interactionService.likeRecipe(_recipe!, _currentUser!);
       }
     } catch (e) {
-      // Rollback jika gagal
       setState(() {
         _isLiked = currentlyLiked;
-        int newLikesCount = currentlyLiked ? _recipe!.likesCount - 1 : _recipe!.likesCount + 1;
+        int newLikesCount = currentlyLiked ? _recipe!.likesCount + 1 : _recipe!.likesCount - 1;
         _recipe = _recipe!.copyWith(likesCount: newLikesCount);
       });
       if(mounted) CustomOverlayNotification.show(context, 'Gagal memproses suka', isSuccess: false);
@@ -140,14 +132,11 @@ class _DetailCardState extends State<DetailCard> {
     if (_isInteractionLoading || _currentUser == null || _recipe == null) return;
     setState(() => _isInteractionLoading = true);
     final currentlyBookmarked = _isBookmarked;
-
-    // Optimistic UI update dengan pengecekan
     setState(() {
       _isBookmarked = !currentlyBookmarked;
       int newBookmarksCount = _isBookmarked ? _recipe!.bookmarksCount + 1 : (_recipe!.bookmarksCount > 0 ? _recipe!.bookmarksCount - 1 : 0);
       _recipe = _recipe!.copyWith(bookmarksCount: newBookmarksCount);
     });
-
     try {
       if (currentlyBookmarked) {
         await widget.interactionService.unbookmarkRecipe(_currentUser!.uid, _recipe!.id);
@@ -156,16 +145,52 @@ class _DetailCardState extends State<DetailCard> {
       }
       if (mounted) CustomOverlayNotification.show(context, _isBookmarked ? 'Postingan berhasil disimpan' : 'Simpanan resep dihapus');
     } catch (e) {
-      // Rollback jika gagal
       setState(() {
         _isBookmarked = currentlyBookmarked;
-        int newBookmarksCount = currentlyBookmarked ? _recipe!.bookmarksCount - 1 : _recipe!.bookmarksCount + 1;
+        int newBookmarksCount = currentlyBookmarked ? _recipe!.bookmarksCount + 1 : _recipe!.bookmarksCount - 1;
         _recipe = _recipe!.copyWith(bookmarksCount: newBookmarksCount);
       });
       if(mounted) CustomOverlayNotification.show(context, 'Gagal memproses simpanan', isSuccess: false);
     } finally {
       if (mounted) setState(() => _isInteractionLoading = false);
     }
+  }
+
+  void _postCommentOrReply() async {
+    if (_commentController.text.trim().isEmpty || _currentUser == null || _recipe == null) return;
+    
+    final text = _commentController.text.trim();
+    final isReplying = _replyingToComment != null;
+    final parentComment = _replyingToComment;
+
+    _commentController.clear();
+    _commentFocusNode.unfocus();
+    setState(() => _replyingToComment = null);
+
+    try {
+      if (isReplying) {
+        final newReply = ReplyModel(id: '', userId: _currentUser!.uid, userName: _currentUser!.displayName ?? 'Anonim', userPhotoUrl: _currentUser!.photoURL, text: text, createdAt: Timestamp.now());
+        await widget.interactionService.addReply(newReply, _recipe!.id, parentComment!, _currentUser!);
+        if (mounted) CustomOverlayNotification.show(context, 'Balasan berhasil dikirim');
+      } else {
+        final newComment = CommentModel(id: '', recipeId: _recipe!.id, userId: _currentUser!.uid, userName: _currentUser!.displayName ?? 'Anonim', userPhotoUrl: _currentUser!.photoURL, text: text, createdAt: Timestamp.now());
+        await widget.interactionService.addComment(newComment, _recipe!, _currentUser!);
+        if (mounted) CustomOverlayNotification.show(context, 'Komentar berhasil dikirim');
+      }
+    } catch (e) {
+      if(mounted) {
+        // Tampilkan pesan error yang sesuai
+        final errorMessage = isReplying ? 'Gagal mengirim balasan.' : 'Gagal mengirim komentar.';
+        CustomOverlayNotification.show(context, errorMessage, isSuccess: false);
+      }
+    }
+  }
+
+  void _startReplying(CommentModel comment) {
+    setState(() => _replyingToComment = comment);
+    _commentFocusNode.requestFocus();
+    _commentController.text = '@${comment.userName} ';
+    _commentController.selection = TextSelection.fromPosition(TextPosition(offset: _commentController.text.length));
   }
 
   Future<String> _generateDeepLink() async {
@@ -195,40 +220,17 @@ class _DetailCardState extends State<DetailCard> {
 
   Future<void> _showDeleteConfirmationDialog() async {
     if (_recipe == null) return;
-
-    final bool? confirm = await showCustomConfirmationDialog(
-      context: context,
-      title: 'Hapus Resep?',
-      content: RichText(
-        textAlign: TextAlign.center,
-        text: TextSpan(
-          style: const TextStyle(color: Colors.black87, fontSize: 14),
-          children: <TextSpan>[
-            const TextSpan(text: 'Apakah anda yakin ingin menghapus resep '),
-            TextSpan(text: '"${_recipe!.title}"?\n\n', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const TextSpan(text: 'Tindakan ini tidak dapat dibatalkan.'),
-          ],
-        ),
-      ),
-      confirmText: 'Hapus',
-      confirmButtonColor: AppColors.error,
-    );
-    
-    if (confirm == true) {
-      _deleteRecipe();
-    }
+    final bool? confirm = await showCustomConfirmationDialog(context: context, title: 'Hapus Resep?', content: RichText(textAlign: TextAlign.center, text: TextSpan(style: const TextStyle(color: Colors.black87, fontSize: 14), children: <TextSpan>[const TextSpan(text: 'Apakah anda yakin ingin menghapus resep '), TextSpan(text: '"${_recipe!.title}"?\n\n', style: const TextStyle(fontWeight: FontWeight.bold)), const TextSpan(text: 'Tindakan ini tidak dapat dibatalkan.')])), confirmText: 'Hapus', confirmButtonColor: AppColors.error);
+    if (confirm == true) _deleteRecipe();
   }
 
   Future<void> _deleteRecipe() async {
     if (_recipe == null || !mounted) return;
-    
     try {
       await widget.recipeService.deleteRecipe(_recipe!.id);
       if (mounted) {
         Navigator.of(context).pop();
-        Future.delayed(const Duration(milliseconds: 200), () {
-          CustomOverlayNotification.show(context, 'Resep berhasil dihapus');
-        });
+        Future.delayed(const Duration(milliseconds: 200), () => CustomOverlayNotification.show(context, 'Resep berhasil dihapus'));
       }
     } catch (e) {
       if (mounted) CustomOverlayNotification.show(context, 'Gagal menghapus resep: ${e.toString()}', isSuccess: false);
@@ -237,41 +239,12 @@ class _DetailCardState extends State<DetailCard> {
 
   void _navigateToEditPage() {
     if (_recipe == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditRecipePage(
-          initialRecipe: _recipe!,
-          recipeService: widget.recipeService,
-          authService: widget.authService,
-        ),
-      ),
-    ).then((result) {
-      if (result == true) {
-        setState(() {
-          _detailsFuture = _loadRecipeDetails();
-        });
-      }
-    });
+    Navigator.push(context, MaterialPageRoute(builder: (context) => EditRecipePage(initialRecipe: _recipe!, recipeService: widget.recipeService, authService: widget.authService)))
+      .then((result) {
+        if (result == true) setState(() => _detailsFuture = _loadRecipeDetails());
+      });
   }
   
-  void _postComment() async {
-    if (_commentController.text.trim().isEmpty || _currentUser == null || _recipe == null) return;
-    final commentText = _commentController.text.trim();
-    _commentController.clear();
-    _commentFocusNode.unfocus();
-    final newComment = CommentModel(
-      id: '', recipeId: _recipe!.id, userId: _currentUser!.uid,
-      userName: _currentUser!.displayName ?? 'Anonim', userPhotoUrl: _currentUser!.photoURL,
-      text: commentText, createdAt: Timestamp.now(),
-    );
-    try {
-      await widget.interactionService.addComment(newComment, _recipe!, _currentUser!);
-    } catch (e) {
-      if(mounted) CustomOverlayNotification.show(context, 'Gagal mengirim komentar.', isSuccess: false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<RecipeDetailBundle?>(
@@ -310,8 +283,6 @@ class _DetailCardState extends State<DetailCard> {
       },
     );
   }
-
-  // --- Widget & Metode Helper ---
 
   AppBar _buildAppBar(RecipeModel recipeData, bool isOwner) {
     return AppBar(
@@ -386,7 +357,7 @@ class _DetailCardState extends State<DetailCard> {
       ),
     );
   }
-
+  
   Widget _buildRecipeInfoSection(RecipeModel recipe) {
     const headingStyle = TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryDark);
     const bodyTextStyle = TextStyle(fontSize: 14, color: AppColors.textSecondaryDark, height: 1.5);
@@ -412,14 +383,13 @@ class _DetailCardState extends State<DetailCard> {
   }
   
   Widget _buildCommentSection(String recipeId) {
-    const headingStyle = TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryDark);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(height: 40),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text('Komentar', style: headingStyle),
+          child: Text('Komentar', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 8),
         StreamBuilder<List<CommentModel>>(
@@ -433,7 +403,11 @@ class _DetailCardState extends State<DetailCard> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
-              itemBuilder: (context, index) => CommentTile(comment: comments[index]),
+              itemBuilder: (context, index) => CommentTile(
+                comment: comments[index],
+                interactionService: widget.interactionService,
+                onReply: () => _startReplying(comments[index]),
+              ),
             );
           },
         ),
@@ -443,58 +417,145 @@ class _DetailCardState extends State<DetailCard> {
 
   Widget _buildCommentInputField() {
     return Container(
-      padding: EdgeInsets.only(left: 16, right: 8, top: 8, bottom: MediaQuery.of(context).viewInsets.bottom + 12),
+      padding: EdgeInsets.only(left: 16, right: 8, top: 8, bottom: MediaQuery.of(context).viewInsets.bottom + 8),
       decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))]),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.emoji_emotions_outlined, color: AppColors.greyMedium),
-          const SizedBox(width: 12),
-          Expanded(child: TextField(controller: _commentController, focusNode: _commentFocusNode, decoration: const InputDecoration.collapsed(hintText: 'Ekspresikan idemu disini...'), textCapitalization: TextCapitalization.sentences)),
-          IconButton(icon: const Icon(Icons.send, color: AppColors.primaryOrange), onPressed: _postComment),
+          if (_replyingToComment != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0, left: 8, right: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Membalas @${_replyingToComment!.userName}', style: const TextStyle(color: AppColors.greyMedium, fontSize: 12)),
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _replyingToComment = null;
+                      _commentController.clear();
+                    }),
+                    child: const Icon(Icons.close, size: 16, color: AppColors.greyMedium),
+                  ),
+                ],
+              ),
+            ),
+          Row(
+            children: [
+              const Icon(Icons.emoji_emotions_outlined, color: AppColors.greyMedium),
+              const SizedBox(width: 12),
+              Expanded(child: TextField(controller: _commentController, focusNode: _commentFocusNode, decoration: const InputDecoration.collapsed(hintText: 'Ekspresikan idemu disini...'), textCapitalization: TextCapitalization.sentences)),
+              IconButton(icon: const Icon(Icons.send, color: AppColors.primaryOrange), onPressed: _postCommentOrReply),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class CommentTile extends StatelessWidget {
+class CommentTile extends StatefulWidget {
   final CommentModel comment;
-  const CommentTile({super.key, required this.comment});
+  final InteractionService interactionService;
+  final VoidCallback onReply;
+
+  const CommentTile({
+    super.key,
+    required this.comment,
+    required this.interactionService,
+    required this.onReply,
+  });
+
+  @override
+  State<CommentTile> createState() => _CommentTileState();
+}
+
+class _CommentTileState extends State<CommentTile> {
+  bool _showReplies = false;
+
   @override
   Widget build(BuildContext context) {
     timeago.setLocaleMessages('id', timeago.IdMessages());
-    final String timeAgo = timeago.format(comment.createdAt.toDate(), locale: 'id');
+    final String timeAgo = timeago.format(widget.comment.createdAt.toDate(), locale: 'id');
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(radius: 20, backgroundImage: widget.comment.userPhotoUrl != null && widget.comment.userPhotoUrl!.isNotEmpty ? NetworkImage(widget.comment.userPhotoUrl!) : const AssetImage('assets/images/profile_placeholder.png') as ImageProvider),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [Text(widget.comment.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), const SizedBox(width: 8), Text(timeAgo, style: const TextStyle(color: AppColors.greyMedium, fontSize: 12))]),
+                    const SizedBox(height: 4),
+                    Text(widget.comment.text, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(height: 4),
+                    TextButton(onPressed: widget.onReply, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), child: const Text('Balas', style: TextStyle(color: AppColors.greyDark, fontWeight: FontWeight.bold, fontSize: 12))),
+                  ],
+                ),
+              ),
+              Column(children: [const Icon(Icons.favorite_border, color: AppColors.greyMedium, size: 18), Text(widget.comment.likesCount.toString(), style: const TextStyle(fontSize: 12))])
+            ],
+          ),
+          if (widget.comment.repliesCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 52.0, top: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_showReplies)
+                    StreamBuilder<List<ReplyModel>>(
+                      stream: widget.interactionService.getReplies(widget.comment.recipeId, widget.comment.id),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) return const SizedBox(height: 20, child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))));
+                        return ListView.builder(
+                          itemCount: snapshot.data!.length, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: EdgeInsets.zero,
+                          itemBuilder: (context, index) => ReplyTile(reply: snapshot.data![index]),
+                        );
+                      },
+                    ),
+                  TextButton(
+                    onPressed: () => setState(() => _showReplies = !_showReplies),
+                    child: Text(_showReplies ? 'Sembunyikan balasan' : 'Lihat ${widget.comment.repliesCount} balasan lainnya', style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class ReplyTile extends StatelessWidget {
+  final ReplyModel reply;
+  const ReplyTile({super.key, required this.reply});
+
+  @override
+  Widget build(BuildContext context) {
+    final String timeAgo = timeago.format(reply.createdAt.toDate(), locale: 'id');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(radius: 20, backgroundImage: comment.userPhotoUrl != null && comment.userPhotoUrl!.isNotEmpty ? NetworkImage(comment.userPhotoUrl!) : const AssetImage('assets/images/profile_placeholder.png') as ImageProvider),
-          const SizedBox(width: 12),
+          CircleAvatar(radius: 16, backgroundImage: reply.userPhotoUrl != null && reply.userPhotoUrl!.isNotEmpty ? NetworkImage(reply.userPhotoUrl!) : const AssetImage('assets/images/profile_placeholder.png') as ImageProvider),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Text(comment.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(width: 8),
-                  Text(timeAgo, style: const TextStyle(color: AppColors.greyMedium, fontSize: 12)),
-                ]),
-                const SizedBox(height: 4),
-                Text(comment.text, style: const TextStyle(fontSize: 14)),
-                const SizedBox(height: 4),
-                TextButton(
-                  onPressed: () {},
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                  child: const Text('Balas', style: TextStyle(color: AppColors.greyDark, fontWeight: FontWeight.bold, fontSize: 12)),
-                ),
+                Row(children: [Text(reply.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), const SizedBox(width: 8), Text(timeAgo, style: const TextStyle(color: AppColors.greyMedium, fontSize: 11))]),
+                const SizedBox(height: 2),
+                Text(reply.text, style: const TextStyle(fontSize: 13)),
               ],
             ),
           ),
-          Column(children: [
-            const Icon(Icons.favorite_border, color: AppColors.greyMedium, size: 18),
-            Text(comment.likesCount.toString(), style: const TextStyle(fontSize: 12)),
-          ])
         ],
       ),
     );

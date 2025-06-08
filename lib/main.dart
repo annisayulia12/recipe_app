@@ -23,7 +23,10 @@ Future<void> main() async {
   final userService = UserService();
   final recipeService = RecipeService();
   final notificationService = NotificationService();
-  final interactionService = InteractionService(notificationService: notificationService);
+  final interactionService = InteractionService(
+    notificationService: notificationService,
+    recipeService: recipeService, // Parameter yang hilang ditambahkan di sini
+  );
   final authService = AuthService(userService: userService);
 
   runApp(MyApp(
