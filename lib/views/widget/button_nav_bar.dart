@@ -65,6 +65,8 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
       ProfilePage(
         authService: widget.authService,
         userService: widget.userService,
+        recipeService: widget.recipeService,
+        interactionService: widget.interactionService,
       ),
     ];
 
