@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
 import 'package:recipein_app/views/widget/recipe_card.dart';
 
 class HomePage extends StatefulWidget {
-  final FirestoreService firestoreService;
+  final RecipeService recipeService;
   final AuthService authService;
+  final InteractionService interactionService;
 
   const HomePage({
-    super.key,
-    required this.firestoreService,
-    required this.authService,
+    super.key, 
+    required this.recipeService, 
+    required this.authService, 
+    required this.interactionService
   });
 
   @override
@@ -28,7 +31,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     // Inisialisasi stream HANYA SEKALI di sini
-    _publicRecipesStream = widget.firestoreService.getPublicRecipes(limit: 20);
+    _publicRecipesStream = widget.recipeService.getPublicRecipes(limit: 20);
   }
 
   @override
@@ -111,7 +114,8 @@ class _HomePageState extends State<HomePage> {
                       final recipe = recipes[index];
                       return RecipeCard(
                         recipe: recipe,
-                        firestoreService: widget.firestoreService,
+                        recipeService: widget.recipeService,
+                        interactionService: widget.interactionService,
                         authService: widget.authService,
                       );
                     },

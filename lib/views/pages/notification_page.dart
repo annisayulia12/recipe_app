@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart';
+import 'package:recipein_app/services/notification_service.dart';
 
 class NotificationPage extends StatelessWidget {
-  final FirestoreService firestoreService;
+  final NotificationService notificationService;
   final AuthService authService;
-  const NotificationPage({super.key, required this.firestoreService, required this.authService});
+
+  const NotificationPage({
+    super.key, 
+    required this.notificationService,
+    required this.authService
+  });
 
   @override
   Widget build(BuildContext context) {

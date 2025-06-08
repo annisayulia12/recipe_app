@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:recipein_app/models/models.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
 import 'package:recipein_app/views/pages/detail_card.dart';
 import 'package:recipein_app/constants/app_colors.dart';
-import 'package:recipein_app/services/firestore_service.dart';
 import 'package:recipein_app/services/auth_service.dart'; // Impor AuthService
 
 class RecipeCard extends StatelessWidget {
   final RecipeModel recipe;
-  final FirestoreService firestoreService;
-  final AuthService authService; // Tambahkan parameter ini
+  final RecipeService recipeService;
+  final InteractionService interactionService;
+  final AuthService authService;
 
   const RecipeCard({
     super.key,
     required this.recipe,
-    required this.firestoreService,
-    required this.authService, // Jadikan parameter wajib
+    required this.recipeService,
+    required this.interactionService,
+    required this.authService,
   });
 
   @override
@@ -30,8 +33,9 @@ class RecipeCard extends StatelessWidget {
             MaterialPageRoute(
               builder: (context) => DetailCard(
                 recipeId: recipe.id,
-                firestoreService: firestoreService,
-                authService: authService, // Teruskan authService ke DetailCard
+                recipeService: recipeService,
+                interactionService: interactionService,
+                authService: authService,
               ),
             ),
           );

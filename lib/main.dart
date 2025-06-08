@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:recipein_app/services/auth_service.dart';
+import 'package:recipein_app/services/user_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/notification_service.dart';
 import 'auth_gate.dart';
 import 'firebase_options.dart';
-import 'services/firestore_service.dart';
 // import 'package:google_fonts/google_fonts.dart';
 
 // Dapatkan ID aplikasi dari environment variable yang disediakan saat build,
@@ -16,25 +19,36 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 1. Buat instance layanan tanpa inject apa-apa
-  final authService = AuthService();
-  final firestoreService = FirestoreService();
+  // Inisialisasi semua layanan
+  final userService = UserService();
+  final recipeService = RecipeService();
+  final notificationService = NotificationService();
+  final interactionService = InteractionService(notificationService: notificationService);
+  final authService = AuthService(userService: userService);
 
-  // 2. Jalankan aplikasi, teruskan layanan ke MyApp
   runApp(MyApp(
     authService: authService,
-    firestoreService: firestoreService,
+    userService: userService,
+    recipeService: recipeService,
+    interactionService: interactionService,
+    notificationService: notificationService,
   ));
 }
 
 class MyApp extends StatelessWidget {
   final AuthService authService;
-  final FirestoreService firestoreService;
+  final UserService userService;
+  final RecipeService recipeService;
+  final InteractionService interactionService;
+  final NotificationService notificationService;
 
   const MyApp({
     super.key,
     required this.authService,
-    required this.firestoreService,
+    required this.userService,
+    required this.recipeService,
+    required this.interactionService,
+    required this.notificationService,
   });
 
   @override
@@ -78,7 +92,13 @@ class MyApp extends StatelessWidget {
           )
         )
       ),
-      home: AuthGate(authService: authService, firestoreService: firestoreService),
+      home: AuthGate(
+        authService: authService,
+        userService: userService,
+        recipeService: recipeService,
+        interactionService: interactionService,
+        notificationService: notificationService,
+      ),
     );
   }
 }

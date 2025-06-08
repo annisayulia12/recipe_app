@@ -1,22 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:recipein_app/services/recipe_service.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart'; // Impor notifikasi kustom yang baru
-
-// Pastikan enum ini ada jika belum dipindahkan ke file terpisah
-enum PostPrivacy { publik, pribadi }
-
 class InputPage extends StatefulWidget {
-  final FirestoreService firestoreService;
+  final RecipeService recipeService;
   final AuthService authService;
 
   const InputPage({
     super.key,
-    required this.firestoreService,
+    required this.recipeService,
     required this.authService,
   });
 
@@ -192,7 +188,7 @@ class _InputPageState extends State<InputPage> {
     );
 
     try {
-      await widget.firestoreService.addRecipe(newRecipe);
+      await widget.recipeService.addRecipe(newRecipe);
       if (mounted) {
         // Keluar dari halaman ini terlebih dahulu
         Navigator.of(context).pop();

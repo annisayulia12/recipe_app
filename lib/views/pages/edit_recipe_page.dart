@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:recipein_app/services/recipe_service.dart';
 import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart';
 
-// Pastikan enum ini ada jika belum dipindahkan ke file terpisah
-enum PostPrivacy { publik, pribadi }
-
 class EditRecipePage extends StatefulWidget {
   final RecipeModel initialRecipe;
-  final FirestoreService firestoreService;
+  final RecipeService recipeService;
   final AuthService authService;
 
   const EditRecipePage({
     super.key,
     required this.initialRecipe,
-    required this.firestoreService,
+    required this.recipeService,
     required this.authService,
   });
 
@@ -36,7 +33,9 @@ class _EditRecipePageState extends State<EditRecipePage> {
 
   late PostPrivacy _selectedPrivacy;
   bool _isLoading = false;
-  bool _isFormDirty = false; // State untuk melacak perubahan
+  
+  // *** PERBAIKAN 1: Tambahkan flag untuk melacak perubahan ***
+  bool _isFormDirty = false;
 
   @override
   void initState() {
@@ -47,8 +46,8 @@ class _EditRecipePageState extends State<EditRecipePage> {
     _bahanMasakanController = TextEditingController(text: widget.initialRecipe.ingredients.join('\n'));
     _caraMasakController = TextEditingController(text: widget.initialRecipe.steps.join('\n'));
     _selectedPrivacy = widget.initialRecipe.isPublic ? PostPrivacy.publik : PostPrivacy.pribadi;
-
-    // Tambahkan listener untuk mendeteksi perubahan
+    
+    // Tambahkan listener untuk mendeteksi perubahan input dan set flag _isFormDirty
     _namaResepController.addListener(_setFormDirty);
     _deskripsiController.addListener(_setFormDirty);
     _bahanMasakanController.addListener(_setFormDirty);
@@ -56,6 +55,7 @@ class _EditRecipePageState extends State<EditRecipePage> {
   }
 
   void _setFormDirty() {
+    // Hanya set state sekali untuk efisiensi
     if (!_isFormDirty) {
       setState(() {
         _isFormDirty = true;
@@ -65,6 +65,7 @@ class _EditRecipePageState extends State<EditRecipePage> {
 
   @override
   void dispose() {
+    // Hapus listener untuk mencegah memory leak
     _namaResepController.removeListener(_setFormDirty);
     _deskripsiController.removeListener(_setFormDirty);
     _bahanMasakanController.removeListener(_setFormDirty);
@@ -75,12 +76,12 @@ class _EditRecipePageState extends State<EditRecipePage> {
     _caraMasakController.dispose();
     super.dispose();
   }
-
+  
   // --- Fitur 2: Dialog Konfirmasi Keluar ---
   Future<bool> _onWillPop() async {
-    if (!_isFormDirty) {
-      return true; // Izinkan keluar jika tidak ada perubahan
-    }
+    // Jika tidak ada perubahan, izinkan keluar tanpa bertanya
+    if (!_isFormDirty) return true;
+
     final bool? shouldPop = await showCustomConfirmationDialog(
       context: context,
       title: 'Keluar dari halaman?',
@@ -88,15 +89,15 @@ class _EditRecipePageState extends State<EditRecipePage> {
       confirmText: 'Keluar',
       cancelText: 'Batal',
     );
-    return shouldPop ?? false; // Jika dialog ditutup, anggap batal
+    // Jika pengguna menekan "Keluar", kembalikan true. Jika "Batal" atau dialog ditutup, kembalikan false.
+    return shouldPop ?? false;
   }
 
-  // --- Fitur 1: Notifikasi Kustom untuk Update ---
   Future<void> _updateRecipe() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    String? imageUrl = widget.initialRecipe.imageUrl; // Placeholder
+    String? imageUrl = widget.initialRecipe.imageUrl;
     List<String> ingredientsList = _bahanMasakanController.text.split('\n').where((s) => s.trim().isNotEmpty).toList();
     List<String> stepsList = _caraMasakController.text.split('\n').where((s) => s.trim().isNotEmpty).toList();
 
@@ -111,17 +112,16 @@ class _EditRecipePageState extends State<EditRecipePage> {
     );
 
     try {
-      await widget.firestoreService.updateRecipe(updatedRecipe);
+      await widget.recipeService.updateRecipe(updatedRecipe);
       if (mounted) {
-        // Kirim 'true' kembali untuk menandakan ada perubahan
-        Navigator.of(context).pop(true);
-        // Beri jeda agar notifikasi muncul di halaman sebelumnya
+        // Kirim 'true' kembali untuk menandakan ada perubahan dan refresh halaman detail
+        Navigator.of(context).pop(true); 
         Future.delayed(const Duration(milliseconds: 200), () {
           CustomOverlayNotification.show(context, 'Resep berhasil diperbarui');
         });
       }
     } catch (e) {
-      if (mounted) CustomOverlayNotification.show(context, 'Gagal memperbarui resep', isSuccess: false);
+      if(mounted) CustomOverlayNotification.show(context, 'Gagal memperbarui resep', isSuccess: false);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -129,13 +129,16 @@ class _EditRecipePageState extends State<EditRecipePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Bungkus Scaffold dengan WillPopScope untuk menangani tombol back sistem
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
         appBar: AppBar(
+          // *** PERBAIKAN 2: Ubah onPressed pada tombol kembali di AppBar ***
           leading: IconButton(
             icon: const Icon(Icons.arrow_circle_left_outlined, color: AppColors.primaryOrange, size: 30),
             onPressed: () async {
+              // Panggil logika yang sama seperti tombol back sistem
               if (await _onWillPop()) {
                 Navigator.of(context).pop();
               }
@@ -164,11 +167,27 @@ class _EditRecipePageState extends State<EditRecipePage> {
                   maxLines: 2,
                 ),
                 _buildLabel('Foto Masakan'),
-                // TODO: Implementasi UI untuk menampilkan gambar yang ada dan opsi untuk mengubahnya
-                Container(
-                  height: 150, width: double.infinity,
-                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
-                  child: Center(child: Text("UI untuk edit gambar akan datang")),
+                // Tampilkan gambar yang sudah ada
+                if (widget.initialRecipe.imageUrl != null && widget.initialRecipe.imageUrl!.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: Image.network(
+                      widget.initialRecipe.imageUrl!,
+                      height: 150, width: double.infinity, fit: BoxFit.cover,
+                    ),
+                  )
+                else
+                  Container(
+                    height: 150, width: double.infinity,
+                    decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                    child: const Center(child: Text("Tidak ada gambar")),
+                  ),
+                // TODO: Tambahkan tombol untuk mengubah gambar
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => CustomOverlayNotification.show(context, 'Fitur ubah gambar akan datang!', isSuccess: false), 
+                  icon: const Icon(Icons.add_photo_alternate_outlined, color: AppColors.primaryOrange), 
+                  label: const Text("Ubah Foto", style: TextStyle(color: AppColors.primaryOrange))
                 ),
 
                 _buildLabel('Bahan Masakan (pisahkan per baris)'),
@@ -224,10 +243,7 @@ class _EditRecipePageState extends State<EditRecipePage> {
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, top: 16.0),
-      child: Text(
-        text,
-        style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 14),
-      ),
+      child: Text(text, style: const TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 14)),
     );
   }
 
@@ -236,15 +252,12 @@ class _EditRecipePageState extends State<EditRecipePage> {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          _setFormDirty();
+          _setFormDirty(); // Tandai ada perubahan
           setState(() => _selectedPrivacy = value);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10.0),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryGreen : Colors.transparent,
-            borderRadius: BorderRadius.circular(8.0),
-          ),
+          decoration: BoxDecoration(color: isSelected ? AppColors.primaryGreen : Colors.transparent, borderRadius: BorderRadius.circular(8.0)),
           alignment: Alignment.center,
           child: Text(text, style: TextStyle(color: isSelected ? AppColors.white : AppColors.textSecondaryDark, fontWeight: FontWeight.w600)),
         ),

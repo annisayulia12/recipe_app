@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
 import 'package:recipein_app/views/widget/recipe_card.dart';
 
 class UserRecipesPage extends StatefulWidget {
-  final FirestoreService firestoreService;
+  final RecipeService recipeService;
+  final InteractionService interactionService;
   final AuthService authService;
 
   const UserRecipesPage({
-    super.key,
-    required this.firestoreService,
-    required this.authService,
+    super.key, 
+    required this.recipeService, 
+    required this.interactionService, 
+    required this.authService
   });
 
   @override
@@ -30,7 +33,7 @@ class _UserRecipesPageState extends State<UserRecipesPage> {
     _currentUserId = widget.authService.getCurrentUser()?.uid;
     // Inisialisasi stream HANYA SEKALI di sini
     if (_currentUserId != null) {
-      _userRecipesStream = widget.firestoreService.getUserRecipes(_currentUserId!);
+      _userRecipesStream = widget.recipeService.getUserRecipes(_currentUserId!);
     }
   }
 
@@ -83,7 +86,8 @@ class _UserRecipesPageState extends State<UserRecipesPage> {
               final recipe = recipes[index];
               return RecipeCard(
                 recipe: recipe,
-                firestoreService: widget.firestoreService,
+                recipeService: widget.recipeService,
+                interactionService: widget.interactionService,
                 authService: widget.authService,
               );
             },

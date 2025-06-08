@@ -5,7 +5,8 @@ import 'package:firebase_dynamic_links/firebase_dynamic_links.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
 import 'package:recipein_app/views/pages/edit_recipe_page.dart';
 import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart';
@@ -26,14 +27,16 @@ class RecipeDetailBundle {
 
 class DetailCard extends StatefulWidget {
   final String recipeId;
-  final FirestoreService firestoreService;
+  final RecipeService recipeService;
+  final InteractionService interactionService;
   final AuthService authService;
 
   const DetailCard({
-    super.key,
-    required this.recipeId,
-    required this.firestoreService,
-    required this.authService,
+    super.key, 
+    required this.recipeId, 
+    required this.recipeService, 
+    required this.interactionService, 
+    required this.authService
   });
 
   @override
@@ -63,15 +66,15 @@ class _DetailCardState extends State<DetailCard> {
 
   Future<RecipeDetailBundle?> _loadRecipeDetails() async {
     try {
-      final recipeData = await widget.firestoreService.getRecipe(widget.recipeId);
+      final recipeData = await widget.recipeService.getRecipe(widget.recipeId);
       if (recipeData == null) return null;
 
       bool liked = false;
       bool bookmarked = false;
       if (_currentUser != null) {
         final results = await Future.wait([
-          widget.firestoreService.isRecipeLikedByUser(recipeData.id, _currentUser!.uid),
-          widget.firestoreService.isRecipeBookmarkedByUser(_currentUser!.uid, recipeData.id),
+          widget.interactionService.isRecipeLikedByUser(recipeData.id, _currentUser!.uid),
+          widget.interactionService.isRecipeBookmarkedByUser(_currentUser!.uid, recipeData.id),
         ]);
         liked = results[0];
         bookmarked = results[1];
@@ -104,9 +107,9 @@ class _DetailCardState extends State<DetailCard> {
     });
     try {
       if (currentlyLiked) {
-        await widget.firestoreService.unlikeRecipe(_recipe!.id, _currentUser!.uid);
+        await widget.interactionService.unlikeRecipe(_recipe!.id, _currentUser!.uid);
       } else {
-        await widget.firestoreService.likeRecipe(_recipe!.id, _currentUser!.uid);
+        await widget.interactionService.likeRecipe(_recipe!, _currentUser!);
       }
     } catch (e) {
       // Rollback jika gagal
@@ -135,9 +138,9 @@ class _DetailCardState extends State<DetailCard> {
 
     try {
       if (currentlyBookmarked) {
-        await widget.firestoreService.unbookmarkRecipe(_currentUser!.uid, _recipe!.id);
+        await widget.interactionService.unbookmarkRecipe(_currentUser!.uid, _recipe!.id);
       } else {
-        await widget.firestoreService.bookmarkRecipe(_currentUser!.uid, _recipe!.id, recipeTitle: _recipe!.title, recipeImageUrl: _recipe!.imageUrl);
+        await widget.interactionService.bookmarkRecipe(_recipe!, _currentUser!);
       }
       if (mounted) CustomOverlayNotification.show(context, _isBookmarked ? 'Postingan berhasil disimpan' : 'Simpanan resep dihapus');
     } catch (e) {
@@ -208,7 +211,7 @@ class _DetailCardState extends State<DetailCard> {
     if (_recipe == null || !mounted) return;
     
     try {
-      await widget.firestoreService.deleteRecipe(_recipe!.id);
+      await widget.recipeService.deleteRecipe(_recipe!.id);
       if (mounted) {
         Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
         // Beri jeda agar notifikasi muncul di halaman sebelumnya
@@ -228,7 +231,7 @@ class _DetailCardState extends State<DetailCard> {
       MaterialPageRoute(
         builder: (context) => EditRecipePage(
           initialRecipe: _recipe!,
-          firestoreService: widget.firestoreService,
+          recipeService: widget.recipeService,
           authService: widget.authService,
         ),
       ),

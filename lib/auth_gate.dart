@@ -2,20 +2,27 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Untuk User?
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart'; // Impor FirestoreService Anda
+import 'package:recipein_app/services/user_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/notification_service.dart';
 import 'package:recipein_app/login_register_toggle_page.dart'; // Halaman login/register Anda
 import 'package:recipein_app/views/widget/button_nav_bar.dart';  // Impor ButtonNavBar Anda
 
 class AuthGate extends StatelessWidget {
-  // Gunakan tipe yang sebenarnya, bukan dynamic
   final AuthService authService;
-  final FirestoreService firestoreService;
+  final UserService userService;
+  final RecipeService recipeService;
+  final InteractionService interactionService;
+  final NotificationService notificationService;
 
-  // Constructor yang menerima kedua layanan dengan tipe yang benar
   const AuthGate({
     super.key,
     required this.authService,
-    required this.firestoreService,
+    required this.userService,
+    required this.recipeService,
+    required this.interactionService,
+    required this.notificationService,
   });
 
   @override
@@ -31,8 +38,11 @@ class AuthGate extends StatelessWidget {
         }
         if (snapshot.hasData && snapshot.data != null) {
           return ButtonNavBar(
-            authService: authService,
-            firestoreService: firestoreService,
+            authService: authService, 
+            userService: userService, 
+            recipeService: recipeService,
+            interactionService: interactionService, 
+            notificationService: notificationService,
           );
         }
         return LoginRegisterTogglePage(

@@ -2,12 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/services/auth_service.dart';
-import 'package:recipein_app/services/firestore_service.dart';
+import 'package:recipein_app/services/user_service.dart';
 
 class ProfilePage extends StatelessWidget {
   final AuthService authService;
-  final FirestoreService firestoreService;
-  const ProfilePage({super.key, required this.authService, required this.firestoreService});
+  final UserService userService;
+  
+  const ProfilePage({
+    super.key, 
+    required this.authService, 
+    required this.userService,
+  });
 
   @override
   Widget build(BuildContext context) {
