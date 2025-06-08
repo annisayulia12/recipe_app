@@ -12,6 +12,9 @@ import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart';
 import 'package:share_plus/share_plus.dart';
 
+// Impor barrel file untuk komponen-komponen UI
+import 'detail/widgets/widgets.dart';
+
 // Helper class untuk membawa semua data yang dibutuhkan dari future
 class RecipeDetailBundle {
   final RecipeModel recipe;
@@ -80,6 +83,7 @@ class _DetailCardState extends State<DetailCard> {
         bookmarked = results[1];
       }
       
+      // Update state lokal setelah data diambil, ini penting untuk pembaruan UI instan
       if (mounted) {
         setState(() {
           _recipe = recipeData;
@@ -213,8 +217,7 @@ class _DetailCardState extends State<DetailCard> {
     try {
       await widget.recipeService.deleteRecipe(_recipe!.id);
       if (mounted) {
-        Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
-        // Beri jeda agar notifikasi muncul di halaman sebelumnya
+        Navigator.of(context).pop();
         Future.delayed(const Duration(milliseconds: 200), () {
           CustomOverlayNotification.show(context, 'Resep berhasil dihapus');
         });
@@ -250,21 +253,22 @@ class _DetailCardState extends State<DetailCard> {
       future: _detailsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: AppColors.primaryOrange)), body: const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange)));
+          return Scaffold(appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0), body: const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange)));
         }
         if (snapshot.hasError) {
-          return Scaffold(appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: AppColors.primaryOrange)), body: Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text("Error: ${snapshot.error}", textAlign: TextAlign.center))));
+          return Scaffold(appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0), body: Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text("Error: ${snapshot.error}", textAlign: TextAlign.center))));
         }
-        if (!snapshot.hasData || snapshot.data == null || _recipe == null) {
-          return Scaffold(appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, iconTheme: const IconThemeData(color: AppColors.primaryOrange)), body: const Center(child: Text('Resep tidak ditemukan.')));
+        if (!snapshot.hasData || snapshot.data == null) {
+          return Scaffold(appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0), body: const Center(child: Text('Resep tidak ditemukan.')));
         }
 
+        // Data sekarang di-assign ke state hanya sekali di initState/_loadRecipeDetails
+        // Di sini kita bisa dengan aman menggunakan _recipe yang sudah ada di state.
+        if (_recipe == null) {
+          return Scaffold(appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0), body: const Center(child: Text('Resep tidak valid.')));
+        }
         final recipeData = _recipe!;
         final bool isOwner = _currentUser?.uid == recipeData.ownerId;
-
-        const TextStyle headingStyle = TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryDark);
-        const TextStyle bodyTextStyle = TextStyle(fontSize: 14, color: AppColors.textSecondaryDark, height: 1.5);
-        const TextStyle metaTextStyle = TextStyle(fontSize: 12, color: AppColors.greyMedium);
 
         return Scaffold(
           backgroundColor: AppColors.offWhite,
@@ -297,94 +301,34 @@ class _DetailCardState extends State<DetailCard> {
               ),
             ],
           ),
-          bottomNavigationBar: _buildInteractionBottomBar(recipeData),
+          bottomNavigationBar: InteractionBottomBar(
+            recipe: recipeData,
+            isLiked: _isLiked,
+            isBookmarked: _isBookmarked,
+            onLikeTap: _toggleLike,
+            onBookmarkTap: _toggleBookmark,
+            onCopyTap: _copyLink,
+            onShareTap: _shareRecipe,
+          ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 80),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (recipeData.imageUrl != null && recipeData.imageUrl!.isNotEmpty)
-                  Image.network(recipeData.imageUrl!, width: double.infinity, height: 250, fit: BoxFit.cover, loadingBuilder: (context, child, loadingProgress) => (loadingProgress == null) ? child : Container(height: 250, color: AppColors.greyLight, child: const Center(child: CircularProgressIndicator())), errorBuilder: (context, error, stackTrace) => Container(height: 250, color: AppColors.greyLight, child: const Icon(Icons.broken_image, color: AppColors.greyMedium)))
-                else
-                  Container(width: double.infinity, height: 250, color: AppColors.greyLight, child: const Icon(Icons.restaurant_menu, size: 60, color: AppColors.greyMedium)),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(recipeData.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimaryDark)),
-                      const SizedBox(height: 4),
-                      Text("Diposting pada ${recipeData.createdAt.toDate().toString().substring(0, 10)}", style: metaTextStyle),
-                      if (recipeData.updatedAt != null) Padding(padding: const EdgeInsets.only(top: 4.0), child: Text("Diperbarui pada ${recipeData.updatedAt!.toDate().toString().substring(0, 10)}", style: metaTextStyle.copyWith(fontStyle: FontStyle.italic))),
-                      if (recipeData.description != null && recipeData.description!.isNotEmpty) ...[const SizedBox(height: 16), Text(recipeData.description!, style: bodyTextStyle)],
-                      const Divider(height: 32),
-                      const Text('Bahan-bahan', style: headingStyle), const SizedBox(height: 8),
-                      if (recipeData.ingredients.isEmpty) const Text("Tidak ada bahan yang dicantumkan.", style: bodyTextStyle) else ...recipeData.ingredients.map((val) => Padding(padding: const EdgeInsets.only(bottom: 4.0), child: Text('• $val', style: bodyTextStyle))),
-                      const SizedBox(height: 24),
-                      const Text('Langkah-langkah', style: headingStyle), const SizedBox(height: 8),
-                      if (recipeData.steps.isEmpty) const Text("Tidak ada langkah-langkah yang dicantumkan.", style: bodyTextStyle) else ...recipeData.steps.asMap().entries.map((entry) => Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${entry.key + 1}. ', style: bodyTextStyle.copyWith(fontWeight: FontWeight.bold)), Expanded(child: Text(entry.value, style: bodyTextStyle))]))),
-                      const Divider(height: 40),
-                      const Text('Komentar', style: headingStyle), const SizedBox(height: 8),
-                      const Padding(padding: EdgeInsets.symmetric(vertical: 20.0), child: Center(child: Text("Fitur komentar akan segera hadir!", style: metaTextStyle))),
-                    ],
-                  ),
+                // --- UI sekarang bersih dan memanggil komponen ---
+                RecipeHeader(recipe: recipeData),
+                RecipeInfoSection(recipe: recipeData),
+                CommentSection(
+                  recipeId: recipeData.id,
+                  recipe: recipeData,
+                  interactionService: widget.interactionService,
+                  currentUser: _currentUser,
                 ),
               ],
             ),
           ),
         );
       },
-    );
-  }
-
-  Widget _buildInteractionBottomBar(RecipeModel recipe) {
-    return BottomAppBar(
-      color: AppColors.white,
-      elevation: 10.0,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TextButton.icon(
-              onPressed: _toggleBookmark,
-              icon: Icon(_isBookmarked ? Icons.bookmark : Icons.bookmark_border, color: _isBookmarked ? AppColors.primaryOrange : AppColors.textPrimaryDark, size: 22),
-              label: Text(
-                "${recipe.bookmarksCount} disimpan",
-                style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimaryDark),
-              ),
-              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            ),
-            Row(
-              children: [
-                _buildSmallInteractionButton(icon: _isLiked ? Icons.favorite : Icons.favorite_border, color: _isLiked ? AppColors.error : AppColors.greyDark, onTap: _toggleLike),
-                _buildSmallInteractionButton(icon: Icons.chat_bubble_outline, color: AppColors.greyDark, onTap: () => CustomOverlayNotification.show(context, 'Fitur komentar akan segera hadir!', isSuccess: false)),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'copy') _copyLink();
-                    else if (value == 'share') _shareRecipe();
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'copy', child: Row(children: [Icon(Icons.copy, size: 20), SizedBox(width: 8), Text('Salin Tautan')])),
-                    const PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 20), SizedBox(width: 8), Text('Bagikan')])),
-                  ],
-                  icon: const Icon(Icons.send_outlined, color: AppColors.greyDark, size: 24),
-                  tooltip: "Bagikan",
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildSmallInteractionButton({required IconData icon, required Color color, required VoidCallback onTap}) {
-    return IconButton(
-      onPressed: onTap,
-      icon: Icon(icon, color: color, size: 24),
-      padding: const EdgeInsets.all(8),
-      constraints: const BoxConstraints(),
     );
   }
 }
