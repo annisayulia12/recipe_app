@@ -25,8 +25,11 @@ class ButtonNavBar extends StatefulWidget {
 
   const ButtonNavBar({
     super.key,
-    required this.authService, required this.userService, required this.recipeService,
-    required this.interactionService, required this.notificationService,
+    required this.authService,
+    required this.userService,
+    required this.recipeService,
+    required this.interactionService,
+    required this.notificationService,
   });
 
   @override
@@ -42,23 +45,51 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
   void initState() {
     super.initState();
     _pages = [
-      HomePage(recipeService: widget.recipeService, authService: widget.authService, interactionService: widget.interactionService),
-      UserRecipesPage(recipeService: widget.recipeService, authService: widget.authService, interactionService: widget.interactionService),
-      NotificationPage(notificationService: widget.notificationService, authService: widget.authService),
-      ProfilePage(authService: widget.authService, userService: widget.userService),
+      HomePage(
+        recipeService: widget.recipeService,
+        authService: widget.authService,
+        interactionService: widget.interactionService,
+      ),
+      UserRecipesPage(
+        recipeService: widget.recipeService,
+        authService: widget.authService,
+        interactionService: widget.interactionService,
+      ),
+      // *** PERBAIKAN DI SINI: Teruskan semua layanan yang dibutuhkan oleh NotificationPage ***
+      NotificationPage(
+        notificationService: widget.notificationService,
+        authService: widget.authService,
+        recipeService: widget.recipeService,
+        interactionService: widget.interactionService,
+      ),
+      ProfilePage(
+        authService: widget.authService,
+        userService: widget.userService,
+      ),
     ];
+    
+    // Panggil initDynamicLinks setelah frame pertama selesai dibangun
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _initDynamicLinks();
+      if (mounted) {
+        _initDynamicLinks();
+      }
     });
   }
 
   Future<void> _initDynamicLinks() async {
-    _linkSubscription = FirebaseDynamicLinks.instance.onLink.listen((dynamicLink) {
-      if (dynamicLink != null) _handleDeepLink(dynamicLink);
-    }, onError: (e) async => print('onLink error: ${e.message}'));
+    _linkSubscription = FirebaseDynamicLinks.instance.onLink.listen(
+      (dynamicLink) {
+        if (dynamicLink != null) {
+          _handleDeepLink(dynamicLink);
+        }
+      },
+      onError: (e) async => print('onLink error: ${e.message}'),
+    );
 
     final initialLink = await FirebaseDynamicLinks.instance.getInitialLink();
-    if (initialLink != null) _handleDeepLink(initialLink);
+    if (initialLink != null) {
+      _handleDeepLink(initialLink);
+    }
   }
 
   void _handleDeepLink(PendingDynamicLinkData link) {
@@ -66,10 +97,18 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
     if (deepLink.path == '/resep') {
       final String? recipeId = deepLink.queryParameters['id'];
       if (recipeId != null && recipeId.isNotEmpty) {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => DetailCard(
-          recipeId: recipeId, recipeService: widget.recipeService,
-          interactionService: widget.interactionService, authService: widget.authService,
-        )));
+        // Gunakan context yang valid untuk navigasi
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailCard(
+              recipeId: recipeId,
+              recipeService: widget.recipeService,
+              interactionService: widget.interactionService,
+              authService: widget.authService,
+            ),
+          ),
+        );
       }
     }
   }
@@ -80,27 +119,45 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
     super.dispose();
   }
 
-  void _onItemTapped(int index) => setState(() => _selectedIndex = index);
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   Future<bool> _onWillPop() async {
     if (_selectedIndex != 0) {
-      setState(() => _selectedIndex = 0);
+      setState(() {
+        _selectedIndex = 0;
+      });
       return false;
     }
+    
     final bool? shouldPop = await showCustomConfirmationDialog(
       context: context,
       title: 'Keluar dari aplikasi?',
-      content: RichText(textAlign: TextAlign.center, text: TextSpan(style: const TextStyle(color: Colors.black87, fontSize: 14),
-        children: <InlineSpan>[
-          const TextSpan(text: 'Apakah anda yakin akan keluar dari aplikasi '),
-          WidgetSpan(alignment: PlaceholderAlignment.middle, child: Image.asset('assets/images/logo.png', height: 16)),
-          const TextSpan(text: '?'),
-        ],
-      )),
+      content: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: const TextStyle(color: Colors.black87, fontSize: 14),
+          children: <InlineSpan>[
+            const TextSpan(text: 'Apakah anda yakin akan keluar dari aplikasi '),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Image.asset('assets/images/logo.png', height: 16),
+            ),
+            const TextSpan(text: '?'),
+          ],
+        ),
+      ),
       confirmText: 'Keluar',
       cancelText: 'Batal',
     );
-    if (shouldPop == true) SystemNavigator.pop();
+    
+    if (shouldPop == true) {
+      SystemNavigator.pop();
+    }
+    
     return false;
   }
 
@@ -109,20 +166,33 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        body: IndexedStack(index: _selectedIndex, children: _pages),
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: _pages,
+        ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => InputPage(
-              recipeService: widget.recipeService, authService: widget.authService,
-            )));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => InputPage(
+                  recipeService: widget.recipeService,
+                  authService: widget.authService,
+                ),
+              ),
+            );
           },
-          backgroundColor: AppColors.primaryGreen, shape: const CircleBorder(),
-          elevation: 6, child: const Icon(Icons.add, color: AppColors.white, size: 28),
+          backgroundColor: AppColors.primaryGreen,
+          shape: const CircleBorder(),
+          elevation: 6,
+          child: const Icon(Icons.add, color: AppColors.white, size: 28),
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         bottomNavigationBar: BottomAppBar(
-          shape: const CircularNotchedRectangle(), notchMargin: 6.0,
-          color: AppColors.white, elevation: 8.0,
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 6.0,
+          color: AppColors.white,
+          elevation: 8.0,
           child: SizedBox(
             height: 60.0,
             child: Row(
@@ -155,12 +225,20 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Icon(isSelected ? activeIcon : icon, color: isSelected ? AppColors.primaryOrange : AppColors.greyDark, size: 24),
+                Icon(
+                  isSelected ? activeIcon : icon,
+                  color: isSelected ? AppColors.primaryOrange : AppColors.greyDark,
+                  size: 24,
+                ),
                 const SizedBox(height: 2),
-                Text(label, style: TextStyle(
-                  color: isSelected ? AppColors.primaryOrange : AppColors.greyDark, fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                )),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: isSelected ? AppColors.primaryOrange : AppColors.greyDark,
+                    fontSize: 10,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
               ],
             ),
           ),
