@@ -22,7 +22,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   // HAPUS: final AuthService _authService = AuthService(); // Gunakan instance dari widget
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -75,22 +76,23 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
- void _showErrorDialog(String message) {
+  void _showErrorDialog(String message) {
     if (!mounted) return;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Registrasi Gagal'),
-        content: Text(message),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('OK'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          )
-        ],
-      ),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Registrasi Gagal'),
+            content: Text(message),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('OK'),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                },
+              ),
+            ],
+          ),
     );
   }
 
@@ -111,33 +113,37 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08, vertical: screenHeight * 0.03),
+          padding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.08,
+            vertical: screenHeight * 0.03,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Container(
                 height: screenHeight * 0.22,
                 margin: EdgeInsets.only(bottom: screenHeight * 0.02),
-                child: Image.network(
-                  'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=600',
+                child: Image.asset(
+                  'assets/images/logo_recipein.png',
                   fit: BoxFit.contain,
-                   errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey)),
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                            : null,
+                  errorBuilder:
+                      (context, error, stackTrace) => const Center(
+                        child: Icon(
+                          Icons.image_not_supported,
+                          size: 50,
+                          color: Colors.grey,
+                        ),
                       ),
-                    );
-                  },
                 ),
               ),
               Text(
                 'Gabung dengan kami!',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold, color: const Color(0xFF333333)),
+                style: TextStyle(
+                  fontSize: screenWidth * 0.06,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF333333),
+                ),
               ),
               SizedBox(height: screenHeight * 0.03),
               CustomTextField(
@@ -159,7 +165,12 @@ class _RegisterPageState extends State<RegisterPage> {
                 labelText: 'Kata Sandi',
                 obscureText: _obscurePassword,
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey),
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.grey,
+                  ),
                   onPressed: () {
                     setState(() {
                       _obscurePassword = !_obscurePassword;
@@ -174,7 +185,12 @@ class _RegisterPageState extends State<RegisterPage> {
                 labelText: 'Konfirmasi Kata Sandi',
                 obscureText: _obscureConfirmPassword,
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.grey),
+                  icon: Icon(
+                    _obscureConfirmPassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.grey,
+                  ),
                   onPressed: () {
                     setState(() {
                       _obscureConfirmPassword = !_obscureConfirmPassword;
@@ -183,22 +199,25 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
               SizedBox(height: screenHeight * 0.03),
-               _isLoading
+              _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : CustomButton(
-                      text: 'Daftar',
-                      onPressed: _register,
-                    ),
+                  : CustomButton(text: 'Daftar', onPressed: _register),
               SizedBox(height: screenHeight * 0.03),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  const Text('Sudah memiliki akun? ', style: TextStyle(color: Colors.grey)),
+                  const Text(
+                    'Sudah memiliki akun? ',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                   GestureDetector(
                     onTap: widget.onTapSwitch,
                     child: const Text(
                       'Masuk disini!',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2A7C76)),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2A7C76),
+                      ),
                     ),
                   ),
                 ],
