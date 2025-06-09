@@ -1,14 +1,17 @@
 // lib/views/pages/profile_page.dart
+
 import 'dart:async';
-import 'dart:io'; // Untuk File
+import 'dart:io'; 
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // Import image_picker
-import 'package:firebase_storage/firebase_storage.dart'; // Import firebase_storage
+import 'package:image_picker/image_picker.dart';
+// HAPUS IMPORT FIREBASE STORAGE
+// import 'package:firebase_storage/firebase_storage.dart'; 
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/user_model.dart';
 import 'package:recipein_app/services/auth_service.dart';
 import 'package:recipein_app/services/user_service.dart';
+import 'package:recipein_app/services/storage_service.dart'; // <-- IMPORT STORAGE SERVICE KITA
 import 'package:recipein_app/views/pages/change_password_page.dart';
 import 'package:recipein_app/views/pages/edit_username_page.dart';
 import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
@@ -17,8 +20,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:recipein_app/services/interaction_service.dart';
 import 'package:recipein_app/services/recipe_service.dart';
-import 'package:recipein_app/models/recipe_model.dart';
-import 'package:recipein_app/views/widget/recipe_card.dart';
+import 'package:recipein_app/views/pages/saved_recipes_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final AuthService authService;
@@ -39,13 +41,16 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  // TAMBAHKAN INSTANCE STORAGE SERVICE
+  final StorageService _storageService = StorageService();
+  
   StreamSubscription<UserModel?>? _userProfileSubscription;
   UserModel? _userProfile;
   bool _isLoadingProfile = true;
   String? _errorMessage;
 
-  File? _pickedImage; // Untuk menyimpan gambar yang dipilih sementara
-  bool _isUploadingPhoto = false; // Status untuk upload foto
+  File? _pickedImage; 
+  bool _isUploadingPhoto = false; 
 
   @override
   void initState() {
@@ -61,6 +66,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _listenToUserProfile() {
+    // ... (Fungsi ini tidak berubah)
     setState(() {
       _isLoadingProfile = true;
       _errorMessage = null;
@@ -101,103 +107,75 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // --- FUNGSI INI DIUBAH TOTAL UNTUK MENGGUNAKAN SUPABASE ---
   Future<void> _pickAndUploadProfileImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 75,
-    ); // Kualitas 75%
-    // Anda bisa juga menambahkan opsi dari kamera:
-    // final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    );
 
-    if (image != null) {
-      setState(() {
-        _pickedImage = File(image.path);
-        _isUploadingPhoto = true; // Set status loading upload
-      });
+    if (image == null) return; // Jika pengguna tidak memilih gambar
 
-      final currentUser = widget.authService.getCurrentUser();
-      if (currentUser == null) {
-        CustomOverlayNotification.show(
-          context,
-          'Anda harus login untuk mengganti foto profil.',
-          isSuccess: false,
-        );
-        setState(() {
-          _isUploadingPhoto = false;
-          _pickedImage = null; // Reset picked image
-        });
-        return;
+    setState(() {
+      _pickedImage = File(image.path);
+      _isUploadingPhoto = true;
+    });
+
+    final currentUser = widget.authService.getCurrentUser();
+    if (currentUser == null) {
+      CustomOverlayNotification.show(context, 'Anda harus login.', isSuccess: false);
+      setState(() => _isUploadingPhoto = false);
+      return;
+    }
+
+    try {
+      // 1. Hapus gambar profil lama jika ada
+      final oldImageUrl = _userProfile?.photoUrl;
+      if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
+        await _storageService.deleteFile(oldImageUrl);
       }
 
-      try {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profile_images')
-            .child(currentUser.uid)
-            .child(
-              '${DateTime.now().millisecondsSinceEpoch}.jpg',
-            ); // Nama file unik
+      // 2. Buat path unik untuk gambar baru di Supabase
+      final fileExtension = image.path.split('.').last;
+      final path = '${currentUser.uid}/profile.$fileExtension';
 
-        final uploadTask = storageRef.putFile(_pickedImage!);
-        final snapshot = await uploadTask.whenComplete(() {});
+      // 3. Unggah gambar baru menggunakan StorageService
+      final downloadUrl = await _storageService.uploadFile(_pickedImage!, path);
 
-        if (snapshot.state == TaskState.success) {
-          final downloadUrl = await storageRef.getDownloadURL();
+      // 4. Perbarui URL di Firebase Auth
+      await currentUser.updatePhotoURL(downloadUrl);
+      await currentUser.reload();
 
-          // Perbarui photoUrl di Firebase Auth
-          await currentUser.updatePhotoURL(downloadUrl);
-          await currentUser
-              .reload(); // Refresh user object untuk mendapatkan data terbaru
+      // 5. Perbarui URL di Firestore
+      final updatedUserModel = _userProfile!.copyWith(photoUrl: downloadUrl);
+      await widget.userService.updateUserProfile(updatedUserModel);
+      
+      // Sinkronkan state lokal
+      setState(() {
+        _userProfile = updatedUserModel;
+      });
 
-          // Perbarui photoUrl di Firestore melalui UserService
-          final updatedUserModel = UserModel(
-            uid: currentUser.uid,
-            email: currentUser.email ?? '',
-            displayName:
-                currentUser.displayName ??
-                _userProfile?.displayName ??
-                'Pengguna Baru',
-            photoUrl: downloadUrl, // Gunakan URL yang baru diunggah
-            createdAt: _userProfile?.createdAt ?? Timestamp.now(),
-          );
-          await widget.userService.updateUserProfile(updatedUserModel);
+      if (mounted) {
+        CustomOverlayNotification.show(context, 'Foto profil berhasil diperbarui.');
+      }
 
-          if (mounted) {
-            CustomOverlayNotification.show(
-              context,
-              'Foto profil berhasil diperbarui.',
-            );
-          }
-        } else {
-          if (mounted) {
-            CustomOverlayNotification.show(
-              context,
-              'Gagal mengunggah foto profil.',
-              isSuccess: false,
-            );
-          }
-        }
-      } catch (e) {
-        print('Error uploading profile image: $e');
-        if (mounted) {
-          CustomOverlayNotification.show(
-            context,
-            'Terjadi kesalahan saat mengunggah foto: $e',
-            isSuccess: false,
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isUploadingPhoto = false;
-            _pickedImage = null; // Clear the picked image after upload attempt
-          });
-        }
+    } catch (e) {
+      print('Error uploading profile image: $e');
+      if (mounted) {
+        CustomOverlayNotification.show(context, 'Terjadi kesalahan: $e', isSuccess: false);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingPhoto = false;
+          _pickedImage = null;
+        });
       }
     }
   }
 
+  // ... (Sisa kode dari _handleSignOut sampai akhir tidak ada yang berubah)
   Future<void> _handleSignOut() async {
     final bool? confirm = await showCustomConfirmationDialog(
       context: context,
@@ -268,6 +246,19 @@ class _ProfilePageState extends State<ProfilePage> {
       CustomOverlayNotification.show(context, 'Kata sandi berhasil diganti.');
     }
   }
+  
+  void _navigateToSavedRecipesPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SavedRecipesPage(
+          authService: widget.authService,
+          interactionService: widget.interactionService,
+          recipeService: widget.recipeService,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -337,6 +328,13 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 10),
 
             _buildProfileOption(
+              icon: Icons.bookmark_border,
+              label: 'Resep Disimpan',
+              onTap: _navigateToSavedRecipesPage,
+            ),
+            const SizedBox(height: 8),
+
+            _buildProfileOption(
               icon: Icons.lock_outline,
               label: 'Ganti Kata Sandi',
               onTap: _navigateToChangePasswordPage,
@@ -349,11 +347,6 @@ class _ProfilePageState extends State<ProfilePage> {
               iconColor: AppColors.error,
               textColor: AppColors.error,
             ),
-
-            const SizedBox(height: 20),
-
-            _buildSectionHeader('Resep Disimpan'),
-            _savedRecipesSection(),
           ],
         ),
       ),
@@ -373,24 +366,22 @@ class _ProfilePageState extends State<ProfilePage> {
                 radius: 60,
                 backgroundColor: AppColors.greyLight,
                 backgroundImage:
-                    _pickedImage !=
-                            null // Prioritaskan gambar yang baru dipilih
+                    _pickedImage != null 
                         ? FileImage(_pickedImage!) as ImageProvider
                         : (user.photoUrl != null && user.photoUrl!.isNotEmpty
                             ? NetworkImage(user.photoUrl!)
                             : const AssetImage(
-                                  'assets/images/profile_placeholder.png',
-                                )
+                                'assets/images/profile_placeholder.png',
+                              )
                                 as ImageProvider),
                 onBackgroundImageError: (exception, stackTrace) {
                   print('Error loading image: $exception');
-                  // Fallback to placeholder if network image fails
                 },
                 child:
-                    _isUploadingPhoto // Tampilkan progress indicator saat mengunggah
+                    _isUploadingPhoto 
                         ? const CircularProgressIndicator(
-                          color: AppColors.primaryOrange,
-                        )
+                            color: AppColors.primaryOrange,
+                          )
                         : null,
               ),
               Positioned(
@@ -398,11 +389,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 bottom: 0,
                 child: GestureDetector(
                   onTap:
-                      _pickAndUploadProfileImage, // Panggil fungsi ganti foto
-                  child: CircleAvatar(
+                      _pickAndUploadProfileImage,
+                  child: const CircleAvatar(
                     radius: 18,
                     backgroundColor: AppColors.primaryOrange,
-                    child: const Icon(
+                    child: Icon(
                       Icons.camera_alt_outlined,
                       color: AppColors.white,
                       size: 20,
@@ -443,7 +434,7 @@ class _ProfilePageState extends State<ProfilePage> {
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Text(
-                'Bergabung sejak: ${timeago.format(user.createdAt.toDate(), locale: 'id')}',
+                'Bergabung sejak: ${timeago.format(user.createdAt!.toDate(), locale: 'id')}',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.greyMedium,
@@ -510,88 +501,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 15.0),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimaryDark,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _emptyStateMessage(String message) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
-      child: Center(
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16, color: AppColors.greyMedium),
-        ),
-      ),
-    );
-  }
-
-  Widget _savedRecipesSection() {
-    final currentUser = widget.authService.getCurrentUser();
-    if (currentUser == null) {
-      return _emptyStateMessage(
-        'Anda harus login untuk melihat resep yang disimpan.',
-      );
-    }
-
-    return StreamBuilder<List<RecipeModel>>(
-      stream: widget.interactionService.getSavedRecipes(currentUser.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primaryOrange),
-          );
-        }
-        if (snapshot.hasError) {
-          return _emptyStateMessage(
-            'Error memuat resep disimpan: ${snapshot.error}',
-          );
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _emptyStateMessage('Anda belum menyimpan resep apapun.');
-        }
-
-        final savedRecipes = snapshot.data!;
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: savedRecipes.length,
-          itemBuilder: (context, index) {
-            final recipe = savedRecipes[index];
-            return Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: RecipeCard(
-                recipe: recipe,
-                recipeService: widget.recipeService,
-                interactionService: widget.interactionService,
-                authService: widget.authService,
-                // Anda mungkin perlu menambahkan fungsi onTap untuk detail resep
-                // onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => RecipeDetailPage(recipe: recipe))),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }

@@ -1,11 +1,15 @@
+// lib/services/recipe_service.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:recipein_app/models/models.dart';
 import 'package:recipein_app/main.dart';
+import 'package:recipein_app/services/storage_service.dart'; // Import StorageService
 
 const String recipeDataContainerDocId = 'all_recipes_container';
 
 class RecipeService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final StorageService _storageService = StorageService(); // Buat instance StorageService
 
   CollectionReference<RecipeModel> _recipesRef() {
     return _db.collection('artifacts').doc(appId).collection('data')
@@ -36,7 +40,16 @@ class RecipeService {
 
   Future<void> deleteRecipe(String recipeId) async {
     try {
+      // Ambil data resep dulu untuk mendapatkan URL gambarnya
+      final recipe = await getRecipe(recipeId);
+      if (recipe != null && recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty) {
+        // Hapus gambar dari Storage
+        await _storageService.deleteFile(recipe.imageUrl!);
+      }
+      
+      // Hapus dokumen resep dari Firestore
       await _recipesRef().doc(recipeId).delete();
+
     } catch (e) {
       print("Error deleting recipe: $e");
       throw Exception("Gagal menghapus resep.");

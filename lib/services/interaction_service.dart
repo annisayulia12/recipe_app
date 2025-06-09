@@ -1,3 +1,5 @@
+// lib/services/interaction_service.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:recipein_app/models/models.dart';
@@ -13,18 +15,20 @@ class InteractionService {
   InteractionService({
     required NotificationService notificationService,
     required RecipeService recipeService,
-  }) : _notificationService = notificationService,
-       _recipeService = recipeService;
+  })  : _notificationService = notificationService,
+        _recipeService = recipeService;
 
-  // --- Path Helpers (tidak berubah) ---
+  // --- Path Helpers ---
   CollectionReference _recipesRef() => _db
       .collection('artifacts')
       .doc(appId)
       .collection('data')
       .doc('all_recipes_container')
       .collection('recipes');
+
   DocumentReference _recipeLikeRef(String recipeId, String userId) =>
       _recipesRef().doc(recipeId).collection('likes').doc(userId);
+
   DocumentReference _userBookmarkRef(String userId, String recipeId) => _db
       .collection('artifacts')
       .doc(appId)
@@ -32,6 +36,16 @@ class InteractionService {
       .doc(userId)
       .collection('bookmarks')
       .doc(recipeId);
+  
+  // Helper untuk koleksi bookmark pengguna
+  CollectionReference _userBookmarksCollection(String userId) => _db
+      .collection('artifacts')
+      .doc(appId)
+      .collection('users')
+      .doc(userId)
+      .collection('bookmarks');
+
+
   CollectionReference<CommentModel> _commentsRef(String recipeId) =>
       _recipesRef()
           .doc(recipeId)
@@ -40,17 +54,17 @@ class InteractionService {
             fromFirestore: (s, _) => CommentModel.fromFirestore(s),
             toFirestore: (c, _) => c.toJson(),
           );
+
   CollectionReference<ReplyModel> _repliesRef(
     String recipeId,
     String commentId,
-  ) => _commentsRef(recipeId)
-      .doc(commentId)
-      .collection('replies')
-      .withConverter<ReplyModel>(
-        fromFirestore: (s, _) => ReplyModel.fromFirestore(s),
-        toFirestore: (r, _) => r.toJson(),
-      );
+  ) =>
+      _commentsRef(recipeId).doc(commentId).collection('replies').withConverter<ReplyModel>(
+            fromFirestore: (s, _) => ReplyModel.fromFirestore(s),
+            toFirestore: (r, _) => r.toJson(),
+          );
 
+  // ... (Fungsi like, unlike, bookmark, unbookmark, comment, reply tidak berubah) ...
   // --- Likes (Diperbarui dengan WriteBatch) ---
   Future<void> likeRecipe(RecipeModel recipe, User actor) async {
     final batch = _db.batch();
@@ -142,8 +156,9 @@ class InteractionService {
     User actor,
   ) async {
     final recipe = await _recipeService.getRecipe(recipeId);
-    if (recipe == null)
+    if (recipe == null) {
       throw Exception("Resep tidak ditemukan saat mencoba membalas.");
+    }
 
     final batch = _db.batch();
     final newReplyRef = _repliesRef(recipeId, parentComment.id).doc();
@@ -172,5 +187,33 @@ class InteractionService {
           .snapshots()
           .map((s) => s.docs.map((d) => d.data()).toList());
 
-  getSavedRecipes(String uid) {}
+  /// **IMPLEMENTASI BARU**
+  /// Mengambil stream dari daftar resep yang disimpan (di-bookmark) oleh pengguna.
+  Stream<List<RecipeModel>> getSavedRecipes(String userId) {
+    return _userBookmarksCollection(userId)
+        .orderBy('bookmarkedAt', descending: true)
+        .snapshots()
+        .asyncMap((snapshot) async {
+          if (snapshot.docs.isEmpty) {
+            return []; // Jika tidak ada bookmark, kembalikan list kosong
+          }
+          
+          // Ambil semua ID resep dari dokumen bookmark
+          final recipeIds = snapshot.docs.map((doc) => doc.id).toList();
+
+          // Panggil RecipeService untuk mengambil detail dari setiap resep
+          // Fungsi ini mengasumsikan ada method di RecipeService untuk mengambil
+          // beberapa resep berdasarkan ID. Jika belum ada, kita bisa membuatnya.
+          // Untuk sekarang, kita akan ambil satu per satu.
+          
+          final List<RecipeModel> recipes = [];
+          for (String recipeId in recipeIds) {
+            final recipe = await _recipeService.getRecipe(recipeId);
+            if (recipe != null) {
+              recipes.add(recipe);
+            }
+          }
+          return recipes;
+    });
+  }
 }

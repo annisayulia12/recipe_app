@@ -5,6 +5,7 @@ import 'package:recipein_app/services/user_service.dart';
 import 'package:recipein_app/services/recipe_service.dart';
 import 'package:recipein_app/services/interaction_service.dart';
 import 'package:recipein_app/services/notification_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_gate.dart';
 import 'firebase_options.dart';
 // import 'package:google_fonts/google_fonts.dart';
@@ -18,6 +19,12 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  await Supabase.initialize(
+    url: 'https://vfqioeascrhyyjsbuwhs.supabase.co', // <-- Ganti dengan URL dari Tahap 1
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmcWlvZWFzY3JoeXlqc2J1d2hzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0OTczOTMsImV4cCI6MjA2NTA3MzM5M30.HFyGzfWDNFcpzhCY1CB4rNfxTwMGyjABhSvdrhVp3BQ', // <-- Ganti dengan Anon Key dari Tahap 1
+  );
+
 
   // Inisialisasi semua layanan
   final userService = UserService();
