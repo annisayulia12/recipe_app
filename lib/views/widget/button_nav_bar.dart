@@ -65,9 +65,11 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
       ProfilePage(
         authService: widget.authService,
         userService: widget.userService,
+        recipeService: widget.recipeService,
+        interactionService: widget.interactionService,
       ),
     ];
-    
+
     // Panggil initDynamicLinks setelah frame pertama selesai dibangun
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -77,14 +79,13 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
   }
 
   Future<void> _initDynamicLinks() async {
-    _linkSubscription = FirebaseDynamicLinks.instance.onLink.listen(
-      (dynamicLink) {
-        if (dynamicLink != null) {
-          _handleDeepLink(dynamicLink);
-        }
-      },
-      onError: (e) async => print('onLink error: ${e.message}'),
-    );
+    _linkSubscription = FirebaseDynamicLinks.instance.onLink.listen((
+      dynamicLink,
+    ) {
+      if (dynamicLink != null) {
+        _handleDeepLink(dynamicLink);
+      }
+    }, onError: (e) async => print('onLink error: ${e.message}'));
 
     final initialLink = await FirebaseDynamicLinks.instance.getInitialLink();
     if (initialLink != null) {
@@ -101,12 +102,13 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DetailCard(
-              recipeId: recipeId,
-              recipeService: widget.recipeService,
-              interactionService: widget.interactionService,
-              authService: widget.authService,
-            ),
+            builder:
+                (context) => DetailCard(
+                  recipeId: recipeId,
+                  recipeService: widget.recipeService,
+                  interactionService: widget.interactionService,
+                  authService: widget.authService,
+                ),
           ),
         );
       }
@@ -132,7 +134,7 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
       });
       return false;
     }
-    
+
     final bool? shouldPop = await showCustomConfirmationDialog(
       context: context,
       title: 'Keluar dari aplikasi?',
@@ -141,7 +143,9 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
         text: TextSpan(
           style: const TextStyle(color: Colors.black87, fontSize: 14),
           children: <InlineSpan>[
-            const TextSpan(text: 'Apakah anda yakin akan keluar dari aplikasi '),
+            const TextSpan(
+              text: 'Apakah anda yakin akan keluar dari aplikasi ',
+            ),
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
               child: Image.asset('assets/images/logo.png', height: 16),
@@ -153,11 +157,11 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
       confirmText: 'Keluar',
       cancelText: 'Batal',
     );
-    
+
     if (shouldPop == true) {
       SystemNavigator.pop();
     }
-    
+
     return false;
   }
 
@@ -166,19 +170,17 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: _pages,
-        ),
+        body: IndexedStack(index: _selectedIndex, children: _pages),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => InputPage(
-                  recipeService: widget.recipeService,
-                  authService: widget.authService,
-                ),
+                builder:
+                    (context) => InputPage(
+                      recipeService: widget.recipeService,
+                      authService: widget.authService,
+                    ),
               ),
             );
           },
@@ -199,9 +201,19 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: <Widget>[
                 _buildNavItem(Icons.home_outlined, Icons.home, 'Beranda', 0),
-                _buildNavItem(Icons.menu_book_outlined, Icons.menu_book, 'Resep Saya', 1),
+                _buildNavItem(
+                  Icons.menu_book_outlined,
+                  Icons.menu_book,
+                  'Resep Saya',
+                  1,
+                ),
                 const SizedBox(width: 40),
-                _buildNavItem(Icons.notifications_outlined, Icons.notifications, 'Notifikasi', 2),
+                _buildNavItem(
+                  Icons.notifications_outlined,
+                  Icons.notifications,
+                  'Notifikasi',
+                  2,
+                ),
                 _buildNavItem(Icons.person_outline, Icons.person, 'Profil', 3),
               ],
             ),
@@ -211,7 +223,12 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, IconData activeIcon, String label, int index) {
+  Widget _buildNavItem(
+    IconData icon,
+    IconData activeIcon,
+    String label,
+    int index,
+  ) {
     bool isSelected = _selectedIndex == index;
     return Expanded(
       child: Material(
@@ -227,16 +244,21 @@ class _ButtonNavBarState extends State<ButtonNavBar> {
               children: <Widget>[
                 Icon(
                   isSelected ? activeIcon : icon,
-                  color: isSelected ? AppColors.primaryOrange : AppColors.greyDark,
+                  color:
+                      isSelected ? AppColors.primaryOrange : AppColors.greyDark,
                   size: 24,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSelected ? AppColors.primaryOrange : AppColors.greyDark,
+                    color:
+                        isSelected
+                            ? AppColors.primaryOrange
+                            : AppColors.greyDark,
                     fontSize: 10,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
