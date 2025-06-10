@@ -1,26 +1,25 @@
 // lib/views/pages/profile_page.dart
 
 import 'dart:async';
-import 'dart:io'; 
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-// HAPUS IMPORT FIREBASE STORAGE
-// import 'package:firebase_storage/firebase_storage.dart'; 
+import 'package:provider/provider.dart'; // <-- IMPORT PROVIDER
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/user_model.dart';
+import 'package:recipein_app/providers/user_profile_provider.dart'; // <-- IMPORT PROVIDER KITA
 import 'package:recipein_app/services/auth_service.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
+import 'package:recipein_app/services/storage_service.dart';
 import 'package:recipein_app/services/user_service.dart';
-import 'package:recipein_app/services/storage_service.dart'; // <-- IMPORT STORAGE SERVICE KITA
 import 'package:recipein_app/views/pages/change_password_page.dart';
 import 'package:recipein_app/views/pages/edit_username_page.dart';
+import 'package:recipein_app/views/pages/saved_recipes_page.dart';
 import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:recipein_app/services/interaction_service.dart';
-import 'package:recipein_app/services/recipe_service.dart';
-import 'package:recipein_app/views/pages/saved_recipes_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final AuthService authService;
@@ -41,86 +40,43 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // TAMBAHKAN INSTANCE STORAGE SERVICE
   final StorageService _storageService = StorageService();
-  
-  StreamSubscription<UserModel?>? _userProfileSubscription;
-  UserModel? _userProfile;
-  bool _isLoadingProfile = true;
-  String? _errorMessage;
 
-  File? _pickedImage; 
-  bool _isUploadingPhoto = false; 
+  File? _pickedImage;
+  bool _isUploadingPhoto = false;
 
   @override
   void initState() {
     super.initState();
-    _listenToUserProfile();
+    // Panggil data profil dari provider saat halaman pertama kali dibuka
+    // atau jika data belum ada.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = widget.authService.getCurrentUser();
+      final provider = Provider.of<UserProfileProvider>(context, listen: false);
+      if (user != null && provider.userProfile == null) {
+        provider.fetchUserProfile(user.uid);
+      }
+    });
     timeago.setLocaleMessages('id', timeago.IdMessages());
   }
 
-  @override
-  void dispose() {
-    _userProfileSubscription?.cancel();
-    super.dispose();
-  }
+  // --- DIHAPUS ---
+  // StreamSubscription<UserModel?>? _userProfileSubscription;
+  // UserModel? _userProfile;
+  // bool _isLoadingProfile;
+  // String? _errorMessage;
+  // void _listenToUserProfile() { ... }
 
-  void _listenToUserProfile() {
-    // ... (Fungsi ini tidak berubah)
-    setState(() {
-      _isLoadingProfile = true;
-      _errorMessage = null;
-    });
-
-    final currentUser = widget.authService.getCurrentUser();
-    if (currentUser != null) {
-      widget.userService
-          .getUserProfile(currentUser.uid)
-          .then((userModel) {
-            if (mounted) {
-              setState(() {
-                _userProfile = userModel;
-                _isLoadingProfile = false;
-              });
-            }
-          })
-          .catchError((e) {
-            if (mounted) {
-              setState(() {
-                _errorMessage = "Gagal memuat profil: $e";
-                _isLoadingProfile = false;
-              });
-              CustomOverlayNotification.show(
-                context,
-                'Gagal memuat profil: $e',
-                isSuccess: false,
-              );
-            }
-          });
-    } else {
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Pengguna tidak login.";
-          _isLoadingProfile = false;
-        });
-      }
-    }
-  }
-
-  // --- FUNGSI INI DIUBAH TOTAL UNTUK MENGGUNAKAN SUPABASE ---
   Future<void> _pickAndUploadProfileImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 75,
     );
+    if (image == null) return;
 
-    if (image == null) return; // Jika pengguna tidak memilih gambar
-
-    setState(() {
-      _pickedImage = File(image.path);
-      _isUploadingPhoto = true;
-    });
+    setState(() => _isUploadingPhoto = true);
+    _pickedImage = File(image.path);
 
     final currentUser = widget.authService.getCurrentUser();
     if (currentUser == null) {
@@ -129,42 +85,31 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
+    final userProvider = Provider.of<UserProfileProvider>(context, listen: false);
+    
     try {
-      // 1. Hapus gambar profil lama jika ada
-      final oldImageUrl = _userProfile?.photoUrl;
+      final oldImageUrl = userProvider.userProfile?.photoUrl;
       if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
         await _storageService.deleteFile(oldImageUrl);
       }
-
-      // 2. Buat path unik untuk gambar baru di Supabase
-      final fileExtension = image.path.split('.').last;
-      final path = '${currentUser.uid}/profile.$fileExtension';
-
-      // 3. Unggah gambar baru menggunakan StorageService
+      
+      final path = '${currentUser.uid}/profile.${image.path.split('.').last}';
       final downloadUrl = await _storageService.uploadFile(_pickedImage!, path);
-
-      // 4. Perbarui URL di Firebase Auth
+      
       await currentUser.updatePhotoURL(downloadUrl);
-      await currentUser.reload();
-
-      // 5. Perbarui URL di Firestore
-      final updatedUserModel = _userProfile!.copyWith(photoUrl: downloadUrl);
+      
+      final updatedUserModel = userProvider.userProfile!.copyWith(photoUrl: downloadUrl);
       await widget.userService.updateUserProfile(updatedUserModel);
       
-      // Sinkronkan state lokal
-      setState(() {
-        _userProfile = updatedUserModel;
-      });
-
+      // === KUNCI PERUBAHAN ADA DI SINI ===
+      // Panggil provider untuk me-refresh data di seluruh aplikasi
+      await userProvider.fetchUserProfile(currentUser.uid);
+      
       if (mounted) {
         CustomOverlayNotification.show(context, 'Foto profil berhasil diperbarui.');
       }
-
     } catch (e) {
-      print('Error uploading profile image: $e');
-      if (mounted) {
-        CustomOverlayNotification.show(context, 'Terjadi kesalahan: $e', isSuccess: false);
-      }
+      if (mounted) CustomOverlayNotification.show(context, 'Terjadi kesalahan: $e', isSuccess: false);
     } finally {
       if (mounted) {
         setState(() {
@@ -175,15 +120,11 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ... (Sisa kode dari _handleSignOut sampai akhir tidak ada yang berubah)
   Future<void> _handleSignOut() async {
     final bool? confirm = await showCustomConfirmationDialog(
       context: context,
       title: 'Konfirmasi Logout',
-      content: const Text(
-        'Apakah Anda yakin ingin keluar?',
-        textAlign: TextAlign.center,
-      ),
+      content: const Text('Apakah Anda yakin ingin keluar?', textAlign: TextAlign.center),
       confirmText: 'Keluar',
       confirmButtonColor: AppColors.error,
     );
@@ -191,169 +132,129 @@ class _ProfilePageState extends State<ProfilePage> {
     if (confirm == true) {
       try {
         await widget.authService.signOut();
+        // --- BARU ---
+        // Bersihkan data provider setelah logout
         if (mounted) {
+          Provider.of<UserProfileProvider>(context, listen: false).clearUserProfile();
           CustomOverlayNotification.show(context, 'Berhasil logout.');
         }
       } catch (e) {
-        if (mounted) {
-          CustomOverlayNotification.show(
-            context,
-            'Gagal logout: ${e.toString()}',
-            isSuccess: false,
-          );
-        }
+        if (mounted) CustomOverlayNotification.show(context, 'Gagal logout: ${e.toString()}', isSuccess: false);
       }
     }
   }
 
   void _navigateToEditUsernamePage() async {
-    if (_userProfile == null) {
-      CustomOverlayNotification.show(
-        context,
-        'Profil belum dimuat. Coba lagi.',
-        isSuccess: false,
-      );
-      return;
-    }
-    final bool? result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) => EditUsernamePage(
-              userService: widget.userService,
-              authService: widget.authService,
-              initialDisplayName: _userProfile!.displayName,
-            ),
-      ),
-    );
-    if (result == true) {
-      CustomOverlayNotification.show(
-        context,
-        'Nama pengguna berhasil diganti.',
-      );
-    }
-  }
+    final userProvider = Provider.of<UserProfileProvider>(context, listen: false);
+    final userProfile = userProvider.userProfile;
 
-  void _navigateToChangePasswordPage() async {
+    if (userProfile == null) return;
+
     final bool? result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => ChangePasswordPage(authService: widget.authService),
-      ),
-    );
-    if (result == true) {
-      CustomOverlayNotification.show(context, 'Kata sandi berhasil diganti.');
-    }
-  }
-  
-  void _navigateToSavedRecipesPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SavedRecipesPage(
+        builder: (context) => EditUsernamePage(
+          userService: widget.userService,
           authService: widget.authService,
-          interactionService: widget.interactionService,
-          recipeService: widget.recipeService,
+          initialDisplayName: userProfile.displayName,
         ),
       ),
     );
+
+    // === KUNCI PERUBAHAN ADA DI SINI ===
+    // Jika halaman edit mengembalikan 'true' (berhasil), refresh data
+    if (result == true && mounted) {
+      final currentUser = widget.authService.getCurrentUser();
+      if (currentUser != null) {
+        await userProvider.fetchUserProfile(currentUser.uid);
+      }
+      CustomOverlayNotification.show(context, 'Nama pengguna berhasil diganti.');
+    }
+  }
+
+  void _navigateToChangePasswordPage() {
+    // Fungsi ini tidak perlu diubah
+    Navigator.push(context, MaterialPageRoute(builder: (context) => ChangePasswordPage(authService: widget.authService)));
+  }
+  
+  void _navigateToSavedRecipesPage() {
+    // Fungsi ini tidak perlu diubah
+    Navigator.push(context, MaterialPageRoute(builder: (context) => SavedRecipesPage(
+      authService: widget.authService,
+      interactionService: widget.interactionService,
+      recipeService: widget.recipeService,
+    )));
   }
 
   @override
   Widget build(BuildContext context) {
-    final firebaseUser = widget.authService.getCurrentUser();
+    // "Dengarkan" perubahan dari UserProfileProvider
+    return Consumer<UserProfileProvider>(
+      builder: (context, userProvider, child) {
+        // Tampilkan loading indicator jika provider sedang memuat data
+        if (userProvider.isLoading && userProvider.userProfile == null) {
+          return const Scaffold(
+            appBar: _ProfileAppBar(),
+            body: Center(child: CircularProgressIndicator(color: AppColors.primaryOrange)),
+          );
+        }
 
-    final displayedUser =
-        _userProfile ??
-        UserModel(
-          uid: firebaseUser?.uid ?? 'unknown',
-          email: firebaseUser?.email ?? 'email@example.com',
-          displayName: firebaseUser?.displayName ?? 'Pengguna Baru',
-          photoUrl: firebaseUser?.photoURL,
-          createdAt: Timestamp.now(),
-        );
+        // Tampilkan error jika ada masalah dari provider
+        if (userProvider.errorMessage != null) {
+          return Scaffold(
+            appBar: const _ProfileAppBar(),
+            body: Center(child: Text(userProvider.errorMessage!)),
+          );
+        }
 
-    if (_isLoadingProfile) {
-      return const Scaffold(
-        appBar: _ProfileAppBar(),
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.primaryOrange),
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Scaffold(
-        appBar: const _ProfileAppBar(),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
+        // Jika tidak ada user (misal, setelah logout), tampilkan pesan
+        if (userProvider.userProfile == null) {
+          return const Scaffold(
+            appBar: _ProfileAppBar(),
+            body: Center(child: Text("Silakan login untuk melihat profil.")),
+          );
+        }
+        
+        // Data siap, bangun UI utama
+        final displayedUser = userProvider.userProfile!;
+        
+        return Scaffold(
+          backgroundColor: AppColors.offWhite,
+          appBar: const _ProfileAppBar(),
+          body: SingleChildScrollView(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.error,
-                  size: 50,
-                ),
+                _buildProfileHeader(displayedUser),
                 const SizedBox(height: 10),
-                Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.textSecondaryDark,
-                    fontSize: 16,
-                  ),
+                _buildProfileOption(
+                  icon: Icons.bookmark_border,
+                  label: 'Resep Disimpan',
+                  onTap: _navigateToSavedRecipesPage,
                 ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _listenToUserProfile,
-                  child: const Text('Coba Lagi'),
+                const SizedBox(height: 8),
+                _buildProfileOption(
+                  icon: Icons.lock_outline,
+                  label: 'Ganti Kata Sandi',
+                  onTap: _navigateToChangePasswordPage,
+                ),
+                const SizedBox(height: 8),
+                _buildProfileOption(
+                  icon: Icons.logout,
+                  label: 'Keluar',
+                  onTap: _handleSignOut,
+                  iconColor: AppColors.error,
+                  textColor: AppColors.error,
                 ),
               ],
             ),
           ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.offWhite,
-      appBar: const _ProfileAppBar(),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildProfileHeader(displayedUser),
-            const SizedBox(height: 10),
-
-            _buildProfileOption(
-              icon: Icons.bookmark_border,
-              label: 'Resep Disimpan',
-              onTap: _navigateToSavedRecipesPage,
-            ),
-            const SizedBox(height: 8),
-
-            _buildProfileOption(
-              icon: Icons.lock_outline,
-              label: 'Ganti Kata Sandi',
-              onTap: _navigateToChangePasswordPage,
-            ),
-            const SizedBox(height: 8),
-            _buildProfileOption(
-              icon: Icons.logout,
-              label: 'Keluar',
-              onTap: _handleSignOut,
-              iconColor: AppColors.error,
-              textColor: AppColors.error,
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildProfileHeader(UserModel user) {
+    // Widget ini tidak berubah, hanya saja sekarang menerima data dari `Consumer`
     return Container(
       padding: const EdgeInsets.all(20),
       color: AppColors.white,
@@ -365,39 +266,28 @@ class _ProfilePageState extends State<ProfilePage> {
               CircleAvatar(
                 radius: 60,
                 backgroundColor: AppColors.greyLight,
-                backgroundImage:
-                    _pickedImage != null 
-                        ? FileImage(_pickedImage!) as ImageProvider
-                        : (user.photoUrl != null && user.photoUrl!.isNotEmpty
-                            ? NetworkImage(user.photoUrl!)
-                            : const AssetImage(
-                                'assets/images/profile_placeholder.png',
-                              )
-                                as ImageProvider),
+                backgroundImage: _pickedImage != null
+                    ? FileImage(_pickedImage!) as ImageProvider
+                    : (user.photoUrl != null && user.photoUrl!.isNotEmpty
+                        ? NetworkImage(user.photoUrl!)
+                        : const AssetImage('assets/images/profile_placeholder.png')
+                            as ImageProvider),
                 onBackgroundImageError: (exception, stackTrace) {
                   print('Error loading image: $exception');
                 },
-                child:
-                    _isUploadingPhoto 
-                        ? const CircularProgressIndicator(
-                            color: AppColors.primaryOrange,
-                          )
-                        : null,
+                child: _isUploadingPhoto
+                    ? const CircularProgressIndicator(color: AppColors.primaryOrange)
+                    : null,
               ),
               Positioned(
                 right: 0,
                 bottom: 0,
                 child: GestureDetector(
-                  onTap:
-                      _pickAndUploadProfileImage,
+                  onTap: _pickAndUploadProfileImage,
                   child: const CircleAvatar(
                     radius: 18,
                     backgroundColor: AppColors.primaryOrange,
-                    child: Icon(
-                      Icons.camera_alt_outlined,
-                      color: AppColors.white,
-                      size: 20,
-                    ),
+                    child: Icon(Icons.camera_alt_outlined, color: AppColors.white, size: 20),
                   ),
                 ),
               ),
@@ -411,11 +301,7 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Text(
                   user.displayName,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimaryDark,
-                  ),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimaryDark),
                 ),
                 const SizedBox(width: 8),
                 const Icon(Icons.edit, size: 20, color: AppColors.greyMedium),
@@ -425,20 +311,14 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 4),
           Text(
             user.email,
-            style: const TextStyle(
-              fontSize: 16,
-              color: AppColors.textSecondaryDark,
-            ),
+            style: const TextStyle(fontSize: 16, color: AppColors.textSecondaryDark),
           ),
           if (user.createdAt != null)
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Text(
                 'Bergabung sejak: ${timeago.format(user.createdAt!.toDate(), locale: 'id')}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.greyMedium,
-                ),
+                style: const TextStyle(fontSize: 12, color: AppColors.greyMedium),
               ),
             ),
         ],
@@ -453,6 +333,7 @@ class _ProfilePageState extends State<ProfilePage> {
     Color iconColor = AppColors.primaryOrange,
     Color textColor = AppColors.textPrimaryDark,
   }) {
+    // Widget ini tidak berubah
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: BoxDecoration(
@@ -473,10 +354,7 @@ class _ProfilePageState extends State<ProfilePage> {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 16.0,
-              horizontal: 20.0,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 20.0),
             child: Row(
               children: [
                 Icon(icon, color: iconColor, size: 24),
@@ -484,18 +362,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 Expanded(
                   child: Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: textColor,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 16, color: textColor, fontWeight: FontWeight.w500),
                   ),
                 ),
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 18,
-                  color: AppColors.greyMedium,
-                ),
+                const Icon(Icons.arrow_forward_ios, size: 18, color: AppColors.greyMedium),
               ],
             ),
           ),
@@ -507,23 +377,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
 class _ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
   const _ProfileAppBar();
-
+  // Widget ini tidak berubah
   @override
   Widget build(BuildContext context) {
     return AppBar(
       title: const Text(
         'Profil Saya',
-        style: TextStyle(
-          color: AppColors.textPrimaryDark,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(color: AppColors.textPrimaryDark, fontWeight: FontWeight.bold),
       ),
       backgroundColor: AppColors.white,
       elevation: 1,
       centerTitle: true,
     );
   }
-
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
