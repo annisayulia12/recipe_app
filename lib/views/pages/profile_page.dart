@@ -2,7 +2,6 @@
 
 import 'dart:async';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart'; // <-- IMPORT PROVIDER
@@ -42,6 +41,10 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final StorageService _storageService = StorageService();
 
+  StreamSubscription<UserModel?>? _userProfileSubscription;
+  UserModel? _userProfile;
+  bool _isLoadingProfile = true;
+  String? _errorMessage;
   File? _pickedImage;
   bool _isUploadingPhoto = false;
 
@@ -60,13 +63,6 @@ class _ProfilePageState extends State<ProfilePage> {
     timeago.setLocaleMessages('id', timeago.IdMessages());
   }
 
-  // --- DIHAPUS ---
-  // StreamSubscription<UserModel?>? _userProfileSubscription;
-  // UserModel? _userProfile;
-  // bool _isLoadingProfile;
-  // String? _errorMessage;
-  // void _listenToUserProfile() { ... }
-
   Future<void> _pickAndUploadProfileImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
@@ -80,7 +76,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final currentUser = widget.authService.getCurrentUser();
     if (currentUser == null) {
-      CustomOverlayNotification.show(context, 'Anda harus login.', isSuccess: false);
+      CustomOverlayNotification.show(
+        context,
+        'Anda harus login.',
+        isSuccess: false,
+      );
       setState(() => _isUploadingPhoto = false);
       return;
     }
@@ -99,14 +99,15 @@ class _ProfilePageState extends State<ProfilePage> {
       await currentUser.updatePhotoURL(downloadUrl);
       
       final updatedUserModel = userProvider.userProfile!.copyWith(photoUrl: downloadUrl);
-      await widget.userService.updateUserProfile(updatedUserModel);
-      
+      await widget.userService.updateUserProfile(updatedUserModel);      
       // === KUNCI PERUBAHAN ADA DI SINI ===
       // Panggil provider untuk me-refresh data di seluruh aplikasi
       await userProvider.fetchUserProfile(currentUser.uid);
-      
       if (mounted) {
-        CustomOverlayNotification.show(context, 'Foto profil berhasil diperbarui.');
+        CustomOverlayNotification.show(
+          context,
+          'Foto profil berhasil diperbarui.',
+        );
       }
     } catch (e) {
       if (mounted) CustomOverlayNotification.show(context, 'Terjadi kesalahan: $e', isSuccess: false);
