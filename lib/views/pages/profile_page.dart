@@ -1,22 +1,26 @@
+// lib/views/pages/profile_page.dart
+
 import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+// HAPUS IMPORT FIREBASE STORAGE
+// import 'package:firebase_storage/firebase_storage.dart';
 import 'package:recipein_app/constants/app_colors.dart';
 import 'package:recipein_app/models/user_model.dart';
 import 'package:recipein_app/services/auth_service.dart';
 import 'package:recipein_app/services/user_service.dart';
-import 'package:recipein_app/services/storage_service.dart';
-import 'package:recipein_app/services/interaction_service.dart';
-import 'package:recipein_app/services/recipe_service.dart';
+import 'package:recipein_app/services/storage_service.dart'; // <-- IMPORT STORAGE SERVICE KITA
 import 'package:recipein_app/views/pages/change_password_page.dart';
 import 'package:recipein_app/views/pages/edit_username_page.dart';
-import 'package:recipein_app/views/pages/saved_recipes_page.dart';
 import 'package:recipein_app/widgets/custom_confirmation_dialog.dart';
 import 'package:recipein_app/widgets/custom_overlay_notification.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:recipein_app/services/interaction_service.dart';
+import 'package:recipein_app/services/recipe_service.dart';
+import 'package:recipein_app/views/pages/saved_recipes_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final AuthService authService;
@@ -37,6 +41,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  // TAMBAHKAN INSTANCE STORAGE SERVICE
   final StorageService _storageService = StorageService();
 
   StreamSubscription<UserModel?>? _userProfileSubscription;
@@ -61,6 +66,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _listenToUserProfile() {
+    // ... (Fungsi ini tidak berubah)
     setState(() {
       _isLoadingProfile = true;
       _errorMessage = null;
@@ -101,6 +107,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // --- FUNGSI INI DIUBAH TOTAL UNTUK MENGGUNAKAN SUPABASE ---
   Future<void> _pickAndUploadProfileImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
@@ -108,7 +115,7 @@ class _ProfilePageState extends State<ProfilePage> {
       imageQuality: 75,
     );
 
-    if (image == null) return;
+    if (image == null) return; // Jika pengguna tidak memilih gambar
 
     setState(() {
       _pickedImage = File(image.path);
@@ -127,22 +134,28 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     try {
+      // 1. Hapus gambar profil lama jika ada
       final oldImageUrl = _userProfile?.photoUrl;
       if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
         await _storageService.deleteFile(oldImageUrl);
       }
 
+      // 2. Buat path unik untuk gambar baru di Supabase
       final fileExtension = image.path.split('.').last;
       final path = '${currentUser.uid}/profile.$fileExtension';
 
+      // 3. Unggah gambar baru menggunakan StorageService
       final downloadUrl = await _storageService.uploadFile(_pickedImage!, path);
 
+      // 4. Perbarui URL di Firebase Auth
       await currentUser.updatePhotoURL(downloadUrl);
       await currentUser.reload();
 
+      // 5. Perbarui URL di Firestore
       final updatedUserModel = _userProfile!.copyWith(photoUrl: downloadUrl);
       await widget.userService.updateUserProfile(updatedUserModel);
 
+      // Sinkronkan state lokal
       setState(() {
         _userProfile = updatedUserModel;
       });
@@ -172,6 +185,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // ... (Sisa kode dari _handleSignOut sampai akhir tidak ada yang berubah)
   Future<void> _handleSignOut() async {
     final bool? confirm = await showCustomConfirmationDialog(
       context: context,
@@ -260,6 +274,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final firebaseUser = widget.authService.getCurrentUser();
+
     final displayedUser =
         _userProfile ??
         UserModel(
@@ -325,7 +340,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
             _buildProfileOption(
               icon: Icons.bookmark_border,
-              label: 'Resep Tersimpan',
+              label: 'Resep Disimpan',
               onTap: _navigateToSavedRecipesPage,
             ),
             const SizedBox(height: 8),
