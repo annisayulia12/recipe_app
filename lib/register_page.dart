@@ -6,12 +6,12 @@ import 'package:recipein_app/custom_textfield.dart';
 
 class RegisterPage extends StatefulWidget {
   final VoidCallback onTapSwitch;
-  final AuthService authService; // Terima AuthService
+  final AuthService authService; 
 
   const RegisterPage({
     super.key,
     required this.onTapSwitch,
-    required this.authService, // Jadikan parameter wajib
+    required this.authService, 
   });
 
   @override
@@ -24,7 +24,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-  // HAPUS: final AuthService _authService = AuthService(); // Gunakan instance dari widget
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -49,7 +48,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _isLoading = true);
     try {
-      // Gunakan widget.authService
       await widget.authService.registerWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),

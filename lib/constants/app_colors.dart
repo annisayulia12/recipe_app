@@ -23,7 +23,7 @@ class AppColors {
   static const Color textSecondaryDark = Color(0xFF757575);
   static const Color textHint = Color(0xFFBDBDBD);
 
-  // --- Warna Semantik (untuk feedback ke pengguna, tidak terlihat di gambar ini) ---
+  // --- Warna Semantik ---
   static const Color success = Color(0xFF4CAF50);
   static const Color error = Color(0xFFF44336);
   static const Color warning = Color(0xFFFFC107);

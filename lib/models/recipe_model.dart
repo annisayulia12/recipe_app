@@ -10,7 +10,7 @@ class RecipeModel {
   final String ownerId;
   final String ownerName;
   final String? ownerPhotoUrl;
-  final Timestamp createdAt; // Jadikan non-nullable, berikan default jika perlu
+  final Timestamp createdAt; 
   final Timestamp? updatedAt;
   final bool isPublic;
   final int likesCount;
@@ -56,8 +56,6 @@ class RecipeModel {
 
   factory RecipeModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    // DEBUG: Print data mentah yang diterima dari Firestore
-    // print("RecipeModel.fromFirestore - Raw data for doc ${doc.id}: $data");
 
     return RecipeModel(
       id: doc.id,
@@ -67,12 +65,11 @@ class RecipeModel {
       steps: List<String>.from(data['steps'] ?? []),
       imageUrl: data['imageUrl'],
       ownerId: data['ownerId'] ?? '',
-      ownerName: data['ownerName'] ?? 'Anonim', // Default jika ownerName null
+      ownerName: data['ownerName'] ?? 'Anonim',
       ownerPhotoUrl: data['ownerPhotoUrl'],
-      // Penanganan lebih aman untuk Timestamp
       createdAt: data['createdAt'] is Timestamp ? data['createdAt'] : Timestamp.now(),
       updatedAt: data['updatedAt'] is Timestamp ? data['updatedAt'] : null,
-      isPublic: data['isPublic'] ?? true, // Default ke publik jika tidak ada
+      isPublic: data['isPublic'] ?? true,
       likesCount: data['likesCount'] ?? 0,
       commentsCount: data['commentsCount'] ?? 0,
       bookmarksCount: data['bookmarksCount'] ?? 0,
